@@ -1,5 +1,6 @@
 module ParseArgs ( Args(..)
                  , VectorFieldGenerator(..)
+                 , Vector
                  , helpString
                  , parseArgs
                  , readVectorFieldFromFile
@@ -49,7 +50,7 @@ recognizedArgs = Map.fromList $ map (\(x,y,v) -> (x, ArgDesc (x,y,v))) [
                  , ("height","600","image height")
                  , ("collisionMargin","2","")
                  , ("padding","20","")
-                 , ("vectorFieldGenerator","PerlinNoise 0.001","")
+                 , ("vectorFieldGenerator","PerlinNoise 0.001 -1000","")
                  , ("numGenerationAttempts","1000","")
                  , ("maxSteps","10000","")
                  , ("maxCurves","10","")
@@ -136,23 +137,23 @@ readColours ('[':str) = map (readOne . (++")")) $ init $ splitOn ")" $ init str
           readOne str' = readColour str'
 readColours str = error $ "Failed interpreting colour list " ++ str
 
-data VectorFieldGenerator = PerlinNoise Float
+data VectorFieldGenerator = PerlinNoise Float Int
                           | FromFile String
                             deriving stock (Show)
 
 instance Read VectorFieldGenerator where
     readsPrec _ str
       | isPrefixOf "PerlinNoise " str =
-          [(PerlinNoise $ read $ drop (length "PerlinNoise ") $ str, "")]
+          let params = words $ drop (length "PerlinNoise ") str
+           in [(PerlinNoise (read $ params !! 0) (read $ params !! 1), "")]
       | isPrefixOf "FromFile " str =
           [(FromFile $ drop (length "FromFile ") $ str, "")]
     readsPrec _ str = error $ "VectorFieldGenerator.read: Can't read " ++ str
 
 type Vector = (Float,Float)
 type VectorField = [[Vector]]
-type NoiseFunc = (Vector -> Vector)
 
-readVectorFieldFromFile :: (Int,Int) -> FilePath -> IO NoiseFunc
+readVectorFieldFromFile :: (Int,Int) -> FilePath -> IO (Vector -> Vector)
 readVectorFieldFromFile (width,height) fp = do
     contents <- readFile fp
     let toTuples [] = []
