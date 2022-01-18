@@ -63,19 +63,19 @@ fidenza args@(Args seed
   --    mapM_ (\(x,y) -> withTexture (uniformTexture (PixelRGBA8 0 0 0 255)) $ stroke 2 JoinRound (CapRound,CapRound) $
   --                        Line (V2 x y) (V2 (x + 20*(fst $ vf (x,y))) (y + 20*(snd $ vf (x,y))))) [(x,y) | x <- [5,25..(fromIntegral width-20)], y <- [5,25..(fromIntegral height-20)]]
   writePng "test.png" $ renderDrawing width height (PixelRGBA8 125 125 125 255) $
-      mapM_ (\crv -> withTexture (uniformTexture (PixelRGBA8 0 0 0 255)) $
-                       stroke (cWidth crv) (JoinMiter 2) (CapStraight 0, CapStraight 0) $
-                           Path (head $ cPoints crv) False (map PathLineTo $ tail $ cPoints crv)) (fst world ++ snd world)
+      mapM_ (\lineSeg -> withTexture (uniformTexture (PixelRGBA8 0 0 0 255)) $
+                           stroke (lsWidth lineSeg) (JoinMiter 2) (CapStraight 0, CapStraight 0) $
+                               Line (lsP1 lineSeg) (lsP2 lineSeg)) (fst world ++ snd world)
 
--- Point comes from Rasterific and it's a V2 Float Float
-data Curve = Curve { cPoints :: [Point]
-                   , cGeneration :: Int
-                   , cWidth :: Float
-                   , cFertility :: Int
-                   , cSkewAngle :: Float }
-                   deriving (Show)
-type World = ( [Curve]   -- fertile
-             , [Curve] ) -- infertile
+data LineSeg = LineSeg { lsP1 :: Point
+                       , lsP2 :: Point
+                       , lsFamily :: Int
+                       , lsWidth :: Float
+                       , lsFertility :: Int
+                       , lsSkewAngle :: Float}
+                         deriving stock (Show)
+type World = ( [LineSeg]   -- fertile
+             , [LineSeg] ) -- infertile
 
 simWorld :: Args               -- fidenza parameters
          -> (Vector -> Vector) -- vector field function
@@ -87,7 +87,7 @@ simWorld :: Args               -- fidenza parameters
 simWorld _ _ _ 0 _ world = return world <$> putStrLn "ending due to reaching max steps"
 simWorld args vectorFunc randomGen steps numCurves ([],infertile)
   | numCurves < (aMaxCurves args) =
-      case genCurve
+      case genLineSeg
             args
             vectorFunc
             randomGen
@@ -95,13 +95,13 @@ simWorld args vectorFunc randomGen steps numCurves ([],infertile)
             numCurves
             (aNumGenerationAttempts args) of
         (_, Nothing) -> return ([],infertile) <$> putStrLn "ending due to failure to spawn"
-        (randomGen', Just newCurve) -> simWorld
-                                         args
-                                         vectorFunc
-                                         randomGen'
-                                         (max 0 $ steps - aMinLength args)
-                                         (numCurves + 1)
-                                         ([newCurve],infertile)
+        (randomGen', Just newLineSeg) -> simWorld
+                                           args
+                                           vectorFunc
+                                           randomGen'
+                                           (max 0 $ steps - aMinLength args)
+                                           (numCurves + 1)
+                                           ([newLineSeg],infertile)
   | otherwise = return ([],infertile) <$> putStrLn "ending due to hitting max curves limit"
 simWorld args vectorFunc randomGen steps numCurves world =
     simWorld args vectorFunc randomGen (steps-1) numCurves $
@@ -113,22 +113,21 @@ stepWorld :: Args               -- fidenza parameters
           -> World              -- updated world
 stepWorld _ _ ([],infertile) = ([],infertile)
 stepWorld args vectorFunc ((firstFertile:fertile),infertile) = newWorld
-    where dies crv@(Curve { cPoints=(p1:p2:_) }) = isOutOfBounds args (p2,p1,cWidth crv)
-                                                || doesCollide
-                                                    args
-                                                    (p2,p1,cWidth crv)
-                                                    (fertile ++ infertile)
-          newWorld = case stepCurve args vectorFunc firstFertile of
+    where dies lineSeg = isOutOfBounds args lineSeg || doesCollide
+                                                         args
+                                                         lineSeg
+                                                         (fertile ++ infertile)
+          newWorld = case stepLineSeg args vectorFunc firstFertile of
                        (old, Nothing)  -> (fertile, old:infertile)
                        (old, Just new) -> if dies new
                                              then (fertile, old:infertile)
-                                             else (new:fertile, infertile)
+                                             else (new:fertile, old:infertile)
 
-type LineSeg = (Point, Point, Float) -- the Float is for width
 isOutOfBounds :: Args    -- fidenza parameters
               -> LineSeg -- line segment to check
               -> Bool
-isOutOfBounds args (p1, p2, w) = isPtOutOfBounds p1 || isPtOutOfBounds p2
+isOutOfBounds args (LineSeg { lsP1 = p1, lsP2 = p2, lsWidth = w }) =
+  isPtOutOfBounds p1 || isPtOutOfBounds p2
     where -- take the dot products of the normal with the axis
           dotx = abs $ dot (normalize $ p2 - p1) (V2 0 1)
           doty = abs $ dot (normalize $ p2 - p1) (V2 1 0)
@@ -140,25 +139,20 @@ isOutOfBounds args (p1, p2, w) = isPtOutOfBounds p1 || isPtOutOfBounds p2
           isPtOutOfBounds (V2 x y) = x < paddingX || x > paddedX
                                   || y < paddingY || y > paddedY
 
-doesCollide :: Args    -- fidenza parameters
-            -> LineSeg -- line segment to check
-            -> [Curve] -- list of colliders
+doesCollide :: Args      -- fidenza parameters
+            -> LineSeg   -- line segment to check
+            -> [LineSeg] -- list of colliders
             -> Bool
 doesCollide _ _ [] = False
-doesCollide args lineSeg (crv:crvs) =
-    (any (doesLineSegCollide args lineSeg) $ curveToLineSegs crv)
- || doesCollide args lineSeg crvs
-
-curveToLineSegs :: Curve -> [LineSeg]
-curveToLineSegs crv = go (cPoints crv) (cWidth crv)
-  where go points _ | length points < 2 = []
-        go (p1:p2:points) w = (p1,p2,w):(go (p2:points) w)
+doesCollide args a (b:others) | lsFamily a == lsFamily b = doesCollide args a others
+doesCollide args lineSeg others = any (doesLineSegCollide args lineSeg) others
 
 doesLineSegCollide :: Args    -- fidenza parameters
                    -> LineSeg -- line segment p
                    -> LineSeg -- line segment s
                    -> Bool
-doesLineSegCollide args p@(p1, p2, pw) s@(s1, s2, sw) = dist < minDist
+doesLineSegCollide args p@(LineSeg { lsP1 = p1, lsP2 = p2, lsWidth = pw })
+                        s@(LineSeg { lsP1 = s1, lsP2 = s2, lsWidth = sw }) = dist < minDist
   where p2OnS = closestPtOnLineSeg p2 s
         dist = distance p2 p2OnS
         dv = normalize (p2 - p2OnS)
@@ -172,34 +166,33 @@ doesLineSegCollide args p@(p1, p2, pw) s@(s1, s2, sw) = dist < minDist
 closestPtOnLineSeg :: Point   -- point to find closest one on line seg to
                    -> LineSeg -- line seg
                    -> Point
-closestPtOnLineSeg p (p1, p2, _) = p1 + v ^* t'
+closestPtOnLineSeg p (LineSeg { lsP1 = p1, lsP2 = p2 }) = p1 + v ^* t'
     where v@(V2 vx vy) = p2 - p1
           l2 = vx^2 + vy^2
           t = (dot (p - p1) v) / l2
           t' = min (max 0 t) 1
 
-stepCurve :: Args                 -- fidenza parameters
-          -> (Vector -> Vector)   -- vector field function
-          -> Curve                -- curve to grow
-          -> (Curve, Maybe Curve) -- old curve and maybe a new one
-stepCurve _ _ curve@(Curve { cFertility = 0 }) = (curve,Nothing)
-stepCurve _ _ (Curve { cPoints = [] }) = error "Can't step empty curve"
-stepCurve args vectorFunc curve@(Curve { cPoints = ((V2 x y):ps)}) = (curve, Just newCurve)
+stepLineSeg :: Args                     -- fidenza parameters
+            -> (Vector -> Vector)       -- vector field function
+            -> LineSeg                  -- line seg to grow
+            -> (LineSeg, Maybe LineSeg) -- old line seg and potentially a new one
+stepLineSeg _ _ ls@(LineSeg { lsFertility = 0 }) = (ls,Nothing)
+stepLineSeg args vectorFunc ls@(LineSeg { lsP2 = V2 x y }) = (ls, Just newLineSeg)
     where (x',y') = vectorFunc (x,y)
           len = aStepLength args
           newPoint = V2 (x + len * x') (y + len * y')
-          newCurve = curve { cPoints = newPoint:(V2 x y):ps
-                           , cFertility = cFertility curve - 1 }
+          newLineSeg = ls { lsP1 = V2 x y, lsP2 = newPoint,
+                            lsFertility = lsFertility ls - 1 }
 
-genCurve :: Args               -- fidenza parameters
-         -> (Vector -> Vector) -- vector field function
-         -> StdGen             -- random number generator
-         -> [Curve]            -- collision curves
-         -> Int                -- number of curves
-         -> Int                -- number of generation attempts before giving up
-         -> (StdGen, Maybe Curve)
-genCurve _ _ randomGen _ _ 0 = (randomGen, Nothing)
-genCurve args vectorFunc randomGen others generation numAttempts = output
+genLineSeg :: Args               -- fidenza parameters
+           -> (Vector -> Vector) -- vector field function
+           -> StdGen             -- random number generator
+           -> [LineSeg]          -- collision line segments
+           -> Int                -- number of curves
+           -> Int                -- number of generation attempts before giving up
+           -> (StdGen, Maybe LineSeg)
+genLineSeg _ _ randomGen _ _ 0 = (randomGen, Nothing)
+genLineSeg args vectorFunc randomGen others generation numAttempts = output
     where (width,height,padding) = (aWidth args, aHeight args, aPadding args)
           paddingF = fromIntegral padding
           (paddedX,paddedY) = (fromIntegral width - paddingF
@@ -210,20 +203,22 @@ genCurve args vectorFunc randomGen others generation numAttempts = output
           (w,randomGen3) = getRandomElem randomGen2 $ aCurveWidths args :: (Float,StdGen)
           (f,randomGen4) = getRandomElem randomGen3 $ aFertilities args :: (Int,StdGen)
           (sw,randomGen') = getRandomElem randomGen4 $ aSkewAngles args :: (Float,StdGen)
-          -- generate curve
-          curve = Curve { cPoints = [V2 x y]
-                        , cGeneration = generation
-                        , cWidth = w
-                        , cFertility = f
-                        , cSkewAngle = sw }
+          -- generate line segment
+          (vx, vy) = vectorFunc (x,y)
+          lineSeg = LineSeg { lsP1 = V2 x y
+                            , lsP2 = V2 (x+aStepLength args * vx) (y+aStepLength args * vy)
+                            , lsFamily = generation
+                            , lsWidth = w
+                            , lsFertility = f
+                            , lsSkewAngle = sw }
           -- step it minLength number of times, to see if it survives
           curveAfterMinLength = take (aMinLength args)
                               . takeWhile ((==1) . length . fst)
-                              $ iterate (stepWorld args vectorFunc) ([curve],others)
+                              $ iterate (stepWorld args vectorFunc) ([lineSeg],others)
           survives = (length curveAfterMinLength == (aMinLength args))
                   && ((==1) . length . fst $ last curveAfterMinLength)
           output = if survives then (randomGen', Just $ head . fst $ last curveAfterMinLength)
-                               else genCurve
+                               else genLineSeg
                                      args
                                      vectorFunc
                                      randomGen'
