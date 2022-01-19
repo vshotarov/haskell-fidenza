@@ -60,16 +60,18 @@ fidenza args@(Args seed
             angle = twoPi * PNoise.noise2d p width noiseRandomGen
          in (cos angle, sin angle))
   world <- simWorld args fieldFunc worldRandomGen (aMaxSteps args) 0 ([],[])
-  let curves = toColouredCurves args randomGen . toFamilies $ fst world ++ snd world
+  let (chunkingRandomGen,colourRandomGen) = split randomGen
+  let curves = toCurves args chunkingRandomGen . toFamilies $ fst world ++ snd world
+  let colouredCurves = colourCurves args colourRandomGen curves
   ---- Visualising the vector field
   --writePng "test.png" $ renderDrawing width height (PixelRGBA8 125 125 125 255) $
   --    mapM_ (\(x,y) -> withTexture (uniformTexture (PixelRGBA8 0 0 0 255)) $ stroke 2 JoinRound (CapRound,CapRound) $
   --                        Line (V2 x y) (V2 (x + 20*(fst $ vf (x,y))) (y + 20*(snd $ vf (x,y))))) [(x,y) | x <- [5,25..(fromIntegral width-20)], y <- [5,25..(fromIntegral height-20)]]
-  writePng "test.png" $ renderDrawing width height (PixelRGBA8 125 125 125 255) $
+  writePng "test.png" $ renderDrawing width height (aBgColour args) $
       mapM_ (\(curve,colour) ->  withTexture (uniformTexture colour) $
                            --stroke 1 (JoinRound) (CapStraight 0, CapStraight 0) $
                              fill $ 
-                               sweepRectOnCurve curve) curves
+                               sweepRectOnCurve curve) colouredCurves
 
 data LineSeg = LineSeg { lsP1 :: Point
                        , lsP2 :: Point
@@ -96,13 +98,21 @@ sweepRectOnCurve lineSegs =
                                     let (top,bot) = snd $ chamfer lineSeg
                                      in (top:topAcc,bot:botAcc)) ([],[]) lineSegs
 
-toColouredCurves :: Args
-          -> StdGen
-          -> [[LineSeg]] -- list of families
-          -> [ColouredCurve]
-toColouredCurves _ _ [] = []
-toColouredCurves args randomGen families =
-  zip (concat chunks) colours
+colourCurves :: Args
+             -> StdGen
+             -> [Curve]
+             -> [ColouredCurve]
+colourCurves _ _ [] = []
+colourCurves args randomGen curves = zip curves colours
+  where colours = map (aColours args !!)
+                $ randomRs (0, length (aColours args) - 1) $ snd $ split randomGen
+
+toCurves :: Args
+         -> StdGen
+         -> [[LineSeg]]
+         -> [Curve]
+toCurves _ _ [] = []
+toCurves args randomGen families = concat chunks
   where toChunks _ [] = []
         toChunks randomGen' lineSegs = if length lineSegs < chunkSize
                                        then [lineSegs]
@@ -112,8 +122,6 @@ toColouredCurves args randomGen families =
                 remainder = drop (chunkSize - aChunksOverlap args) lineSegs
         chunks = map (uncurry toChunks)
                $ zip (iterate (fst . split) randomGen) families
-        colours = map (aColours args !!)
-               $ randomRs (0, length (aColours args) - 1) $ snd $ split randomGen
 
 toFamilies ::[LineSeg] -- list of line segs to group by family
           -> [[LineSeg]]

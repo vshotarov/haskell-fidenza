@@ -53,9 +53,9 @@ recognizedArgs = Map.fromList $ map (\(x,y,v) -> (x, ArgDesc (x,y,v))) [
                  , ("vectorFieldGenerator","PerlinNoise 0.001 -1000","")
                  , ("numGenerationAttempts","1000","")
                  , ("maxSteps","10000","")
-                 , ("maxCurves","10","")
+                 , ("maxCurves","100","")
                  , ("minLength","15","")
-                 , ("chunkSizes","[10,15]","The minimum supported size is 2")
+                 , ("chunkSizes","[10,15]","")
                  , ("squareBlocks","0.0","")
                  , ("avgBlockSize","0.0","")
                    -- generation options
@@ -65,7 +65,7 @@ recognizedArgs = Map.fromList $ map (\(x,y,v) -> (x, ArgDesc (x,y,v))) [
                  , ("skewAngles","(-0.1,0.1,0.02)","")
                    -- drawing
                  , ("chunksOverlap","1","")
-                 , ("bgColour","(0,0,0,255)","")
+                 , ("bgColour","(235,228,216,255)","")
                  , ("colourScheme","0","")
                  , ("customColours","[]","")
                  ]
