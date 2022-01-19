@@ -1,12 +1,14 @@
 module Main (main) where
 
 import System.Environment (getArgs)
-import System.Random (StdGen, mkStdGen, split, randomR)
+import System.Random (StdGen, mkStdGen, split, randomR, randomRs)
 import Codec.Picture( PixelRGBA8( .. ), writePng, Pixel8)
 import Graphics.Rasterific hiding (Vector)
 import Graphics.Rasterific.Linear (normalize, dot, distance, (^*))
 import Graphics.Rasterific.Texture (uniformTexture)
 import Debug.Trace
+
+import qualified Data.Map as Map (Map, fromList, insert)
 
 import ParseArgs (Args( .. ), VectorFieldGenerator( .. ), Vector,
                   helpString, parseArgs, readVectorFieldFromFile)
@@ -43,29 +45,31 @@ fidenza args@(Args seed
                    curveWidths
                    fertilities
                    skewAngles
-                   -- colours
+                   -- drawing
+                   chunksOverlap
                    bgColour
-                   colourScheme
-                   customColours
+                   aColours
              ) = do
   let randomGen = mkStdGen seed
+  let (noiseRandomGen,worldRandomGen) = split randomGen
   fieldFunc <- case vectorFieldGenerator of
     FromFile fp -> readVectorFieldFromFile (width,height) fp
     PerlinNoise freq ofs -> return (\(x,y) ->
         let p = ((x-fromIntegral ofs)*freq,(y-fromIntegral ofs)*freq)
-            randomGen' = snd $ split randomGen
             twoPi = 2 * (22/7)
-            angle = twoPi * PNoise.noise2d p width randomGen'
+            angle = twoPi * PNoise.noise2d p width noiseRandomGen
          in (cos angle, sin angle))
-  world <- simWorld args fieldFunc randomGen (aMaxSteps args) 0 ([],[])
+  world <- simWorld args fieldFunc worldRandomGen (aMaxSteps args) 0 ([],[])
+  let curves = toColouredCurves args randomGen . toFamilies $ fst world ++ snd world
   ---- Visualising the vector field
   --writePng "test.png" $ renderDrawing width height (PixelRGBA8 125 125 125 255) $
   --    mapM_ (\(x,y) -> withTexture (uniformTexture (PixelRGBA8 0 0 0 255)) $ stroke 2 JoinRound (CapRound,CapRound) $
   --                        Line (V2 x y) (V2 (x + 20*(fst $ vf (x,y))) (y + 20*(snd $ vf (x,y))))) [(x,y) | x <- [5,25..(fromIntegral width-20)], y <- [5,25..(fromIntegral height-20)]]
   writePng "test.png" $ renderDrawing width height (PixelRGBA8 125 125 125 255) $
-      mapM_ (\lineSeg -> withTexture (uniformTexture (PixelRGBA8 0 0 0 255)) $
-                           stroke (lsWidth lineSeg) (JoinMiter 2) (CapStraight 0, CapStraight 0) $
-                               Line (lsP1 lineSeg) (lsP2 lineSeg)) (fst world ++ snd world)
+      mapM_ (\(curve,colour) ->  withTexture (uniformTexture colour) $
+                           --stroke 1 (JoinRound) (CapStraight 0, CapStraight 0) $
+                             fill $ 
+                               sweepRectOnCurve curve) curves
 
 data LineSeg = LineSeg { lsP1 :: Point
                        , lsP2 :: Point
@@ -74,9 +78,57 @@ data LineSeg = LineSeg { lsP1 :: Point
                        , lsFertility :: Int
                        , lsSkewAngle :: Float}
                          deriving stock (Show)
+type Curve = [LineSeg]
+type ColouredCurve = (Curve, PixelRGBA8)
+sweepRectOnCurve :: Curve
+                 -> Path
+sweepRectOnCurve lineSegs =
+  Path firstTop True . map PathLineTo $ topPoints ++ (reverse $ firstBot:botPoints)
+  where chamfer (LineSeg { lsP1 = p1, lsP2 = p2, lsWidth = w, lsSkewAngle = angle }) =
+            ((p1+perp,p1-perp),(p2+perp,p2-perp))
+            where (V2 x y) = p2 - p1
+                  (V2 px py) = (normalize $ (V2 (-y) x)) ^* (w/2)
+                  perp = V2 (cos angle * px - sin angle * py)
+                            (sin angle * px + cos angle * py)
+        (firstTop,firstBot) = fst . chamfer $ head lineSegs
+        (topPoints,botPoints) = foldr
+                                  (\lineSeg (topAcc,botAcc) ->
+                                    let (top,bot) = snd $ chamfer lineSeg
+                                     in (top:topAcc,bot:botAcc)) ([],[]) lineSegs
+
+toColouredCurves :: Args
+          -> StdGen
+          -> [[LineSeg]] -- list of families
+          -> [ColouredCurve]
+toColouredCurves _ _ [] = []
+toColouredCurves args randomGen families =
+  zip (concat chunks) colours
+  where toChunks _ [] = []
+        toChunks randomGen' lineSegs = if length lineSegs < chunkSize
+                                       then [lineSegs]
+                                       else chunk:(toChunks randomGen'' remainder)
+          where (chunkSize,randomGen'') = getRandomElem randomGen' (aChunkSizes args)
+                chunk = take chunkSize lineSegs
+                remainder = drop (chunkSize - aChunksOverlap args) lineSegs
+        chunks = map (uncurry toChunks)
+               $ zip (iterate (fst . split) randomGen) families
+        colours = map (aColours args !!)
+               $ randomRs (0, length (aColours args) - 1) $ snd $ split randomGen
+
+toFamilies ::[LineSeg] -- list of line segs to group by family
+          -> [[LineSeg]]
+toFamilies [] = []
+toFamilies (a:[]) = [[a]]
+toFamilies allLineSegs = if length firstFamily > 1 then firstFamily:families
+                                                   else families
+  where familyFold [] lineSeg = [[lineSeg]]
+        familyFold ((first:siblings):others) lineSeg
+          | lsFamily first == lsFamily lineSeg = (lineSeg:first:siblings):others
+          | otherwise                          = [lineSeg]:(first:siblings):others
+        (firstFamily:families) = foldl familyFold [] allLineSegs
+
 type World = ( [LineSeg]   -- fertile
              , [LineSeg] ) -- infertile
-
 simWorld :: Args               -- fidenza parameters
          -> (Vector -> Vector) -- vector field function
          -> StdGen             -- random number generator
@@ -99,7 +151,7 @@ simWorld args vectorFunc randomGen steps numCurves ([],infertile)
                                            args
                                            vectorFunc
                                            randomGen'
-                                           (max 0 $ steps - aMinLength args)
+                                           (steps - 1)
                                            (numCurves + 1)
                                            ([newLineSeg],infertile)
   | otherwise = return ([],infertile) <$> putStrLn "ending due to hitting max curves limit"
@@ -217,7 +269,7 @@ genLineSeg args vectorFunc randomGen others generation numAttempts = output
                               $ iterate (stepWorld args vectorFunc) ([lineSeg],others)
           survives = (length curveAfterMinLength == (aMinLength args))
                   && ((==1) . length . fst $ last curveAfterMinLength)
-          output = if survives then (randomGen', Just $ head . fst $ last curveAfterMinLength)
+          output = if survives then (randomGen', Just lineSeg)
                                else genLineSeg
                                      args
                                      vectorFunc

@@ -32,10 +32,10 @@ data Args = Args
     , aCurveWidths :: [Float]
     , aFertilities :: [Int]
     , aSkewAngles :: [Float]
-      -- Colours
+      -- Drawing
+    , aChunksOverlap :: Int
     , aBgColour :: PixelRGBA8
-    , aColourScheme :: Int
-    , aCustomColours :: [PixelRGBA8]
+    , aColours :: [PixelRGBA8]
     } deriving stock (Show)
 
 data ArgDesc = ArgDesc (String,String,String)
@@ -55,7 +55,7 @@ recognizedArgs = Map.fromList $ map (\(x,y,v) -> (x, ArgDesc (x,y,v))) [
                  , ("maxSteps","10000","")
                  , ("maxCurves","10","")
                  , ("minLength","15","")
-                 , ("chunkSizes","[10,15]","")
+                 , ("chunkSizes","[10,15]","The minimum supported size is 2")
                  , ("squareBlocks","0.0","")
                  , ("avgBlockSize","0.0","")
                    -- generation options
@@ -63,7 +63,8 @@ recognizedArgs = Map.fromList $ map (\(x,y,v) -> (x, ArgDesc (x,y,v))) [
                  , ("curveWidths","[2,10]","")
                  , ("fertilities","(25,1000,25)","")
                  , ("skewAngles","(-0.1,0.1,0.02)","")
-                   -- colours
+                   -- drawing
+                 , ("chunksOverlap","1","")
                  , ("bgColour","(0,0,0,255)","")
                  , ("colourScheme","0","")
                  , ("customColours","[]","")
@@ -113,18 +114,39 @@ parseArgs args = parsedArgs
                           aCurveWidths = readList' $ getArg "curveWidths"
                           aFertilities = readList' $ getArg "fertilities"
                           aSkewAngles = readList' $ getArg "skewAngles"
+                          aChunksOverlap = read $ getArg "chunksOverlap"
                           aBgColour = readColour $ getArg "bgColour"
-                          aColourScheme = read $ getArg "colourScheme"
-                          aCustomColours = readColours $ getArg "customColours"
+                          colourScheme = read $ getArg "colourScheme"
+                          customColours = readColours $ getArg "customColours"
+                          aColours = if length customColours > 0
+                                     then customColours
+                                     else colourSchemes !! colourScheme
                 _  -> error $ "Fidenza.parseArgs: Unrecognized args: " ++ unrecognizedArgs'
 
+-- Colour schemes
+luxe,blackAndWhite :: [PixelRGBA8]
+colourSchemes :: [[PixelRGBA8]]
+luxe = [PixelRGBA8 41 166 145 255,
+        PixelRGBA8 84 62 46 255,
+        PixelRGBA8 49 95 140 255,
+        PixelRGBA8 252 188 25 255,
+        PixelRGBA8 59 43 32 255,
+        PixelRGBA8 31 51 89 255,
+        PixelRGBA8 252 210 101 255,
+        PixelRGBA8 219 79 84 255,
+        PixelRGBA8 252 188 25 255,
+        PixelRGBA8 59 43 32 255,
+        PixelRGBA8 224 215 197 255,
+        PixelRGBA8 184 217 206 255,
+        PixelRGBA8 84 62 46 255]
+blackAndWhite = [PixelRGBA8 0 0 0 255, PixelRGBA8 255 255 255 255]
+colourSchemes = [luxe, blackAndWhite] :: [[PixelRGBA8]]
+
+-- Parsers
 readList' :: (Num a, Enum a, Read a) => String -> [a]
 readList' str@('(':_) = [bottom,(bottom+step)..top]
   where (bottom,top,step) = read str
 readList' str = read str
-
-tupleToColour :: (Pixel8,Pixel8,Pixel8,Pixel8) -> PixelRGBA8
-tupleToColour (r,g,b,a) = PixelRGBA8 r g b a
 
 readColour :: String -> PixelRGBA8
 readColour str = tupleToColour $ read str
@@ -137,6 +159,10 @@ readColours ('[':str) = map (readOne . (++")")) $ init $ splitOn ")" $ init str
           readOne str' = readColour str'
 readColours str = error $ "Failed interpreting colour list " ++ str
 
+tupleToColour :: (Pixel8,Pixel8,Pixel8,Pixel8) -> PixelRGBA8
+tupleToColour (r,g,b,a) = PixelRGBA8 r g b a
+
+-- Vector field generation options
 data VectorFieldGenerator = PerlinNoise Float Int
                           | FromFile String
                             deriving stock (Show)
