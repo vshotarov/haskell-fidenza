@@ -7,7 +7,7 @@ module ParseArgs ( Args(..)
                  ) where
 
 import Codec.Picture( PixelRGBA8( .. ), Pixel8)
-import Data.List (isPrefixOf)
+import Data.List (isPrefixOf, sortBy)
 import Data.List.Split (splitOn)
 
 import qualified Data.Map as Map (Map, fromList, findWithDefault, map, (!), keys)
@@ -35,7 +35,7 @@ data Args = Args
       -- Drawing
     , aChunksOverlap :: Int
     , aBgColour :: PixelRGBA8
-    , aColours :: [PixelRGBA8]
+    , aColours :: [ColourProbability]
     , aStrokeOrFill :: Int
     } deriving stock (Show)
 
@@ -119,31 +119,32 @@ parseArgs args = parsedArgs
                           aChunksOverlap = read $ getArg "chunksOverlap"
                           aBgColour = readColour $ getArg "bgColour"
                           colourScheme = read $ getArg "colourScheme"
-                          customColours = readColours $ getArg "customColours"
-                          aColours = if length customColours > 0
-                                     then customColours
-                                     else colourSchemes !! colourScheme
+                          customColours = readColourProbs $ getArg "customColours"
+                          aColours = sortBy (\a b -> compare (snd a) (snd b)) $
+                                       if length customColours > 0
+                                       then customColours
+                                       else colourSchemes !! colourScheme
                           aStrokeOrFill = read $ getArg "strokeOrFill"
                 _  -> error $ "Fidenza.parseArgs: Unrecognized args: " ++ unrecognizedArgs'
 
 -- Colour schemes
-luxe,blackAndWhite :: [PixelRGBA8]
-colourSchemes :: [[PixelRGBA8]]
-luxe = [PixelRGBA8 41 166 145 255,
-        PixelRGBA8 84 62 46 255,
-        PixelRGBA8 49 95 140 255,
-        PixelRGBA8 252 188 25 255,
-        PixelRGBA8 59 43 32 255,
-        PixelRGBA8 31 51 89 255,
-        PixelRGBA8 252 210 101 255,
-        PixelRGBA8 219 79 84 255,
-        PixelRGBA8 252 188 25 255,
-        PixelRGBA8 59 43 32 255,
-        PixelRGBA8 224 215 197 255,
-        PixelRGBA8 184 217 206 255,
-        PixelRGBA8 84 62 46 255]
-blackAndWhite = [PixelRGBA8 0 0 0 255, PixelRGBA8 255 255 255 255]
-colourSchemes = [luxe, blackAndWhite] :: [[PixelRGBA8]]
+luxe,blackAndWhite :: [ColourProbability]
+colourSchemes :: [[ColourProbability]]
+luxe = [(PixelRGBA8 41 166 145 255 , (1/13))
+       ,(PixelRGBA8 84 62 46 255   , (1/13))
+       ,(PixelRGBA8 49 95 140 255  , (1/13))
+       ,(PixelRGBA8 252 188 25 255 , (1/13))
+       ,(PixelRGBA8 59 43 32 255   , (1/13))
+       ,(PixelRGBA8 31 51 89 255   , (1/13))
+       ,(PixelRGBA8 252 210 101 255, (1/13))
+       ,(PixelRGBA8 219 79 84 255  , (1/13))
+       ,(PixelRGBA8 252 188 25 255 , (1/13))
+       ,(PixelRGBA8 59 43 32 255   , (1/13))
+       ,(PixelRGBA8 224 215 197 255, (1/13))
+       ,(PixelRGBA8 184 217 206 255, (1/13))
+       ,(PixelRGBA8 84 62 46 255   , (1/13))]
+blackAndWhite = [(PixelRGBA8 0 0 0 255, 0.5), (PixelRGBA8 255 255 255 255, 0.5)]
+colourSchemes = [luxe, blackAndWhite]
 
 -- Parsers
 readList' :: (Num a, Enum a, Read a) => String -> [a]
@@ -154,13 +155,17 @@ readList' str = read str
 readColour :: String -> PixelRGBA8
 readColour str = tupleToColour $ read str
 
-readColours :: String -> [PixelRGBA8]
-readColours [] = []
-readColours "[]" = []
-readColours ('[':str) = map (readOne . (++")")) $ init $ splitOn ")" $ init str
-    where readOne (',':str') = readColour str'
-          readOne str' = readColour str'
-readColours str = error $ "Failed interpreting colour list " ++ str
+readColourProbs :: String -> [ColourProbability]
+readColourProbs [] = []
+readColourProbs "[]" = []
+readColourProbs ('[':str) = map (readOne . (++")")) $ init $ splitOn ")" $ init str
+    where readOne (',':str') = tupleToColourProb $ read str'
+          readOne str' = tupleToColourProb $ read str'
+readColourProbs str = error $ "Failed interpreting colour list " ++ str
+
+type ColourProbability = (PixelRGBA8, Float)
+tupleToColourProb :: (Pixel8,Pixel8,Pixel8,Pixel8,Float) -> ColourProbability
+tupleToColourProb (r,g,b,a,prob) = (PixelRGBA8 r g b a, prob)
 
 tupleToColour :: (Pixel8,Pixel8,Pixel8,Pixel8) -> PixelRGBA8
 tupleToColour (r,g,b,a) = PixelRGBA8 r g b a

@@ -106,8 +106,16 @@ colourCurves :: Args
              -> [ColouredCurve]
 colourCurves _ _ [] = []
 colourCurves args randomGen curves = zip curves colours
-  where colours = map (aColours args !!)
-                $ randomRs (0, length (aColours args) - 1) $ snd $ split randomGen
+  where colours = map (sampleColours args)
+                $ randomRs (0.0, 1.0) $ snd $ split randomGen
+
+sampleColours :: Args       -- fidenza parameters
+              -> Float      -- random value between 0 and 1
+              -> PixelRGBA8
+sampleColours args x = go x (aColours args)
+  where go _ [] = error "Couldn't sample colour"
+        go v ((c,prob):_)       | v < prob  = c
+        go v ((c,prob):colours) | otherwise = go (v-prob) colours
 
 toCurves :: Args
          -> StdGen
