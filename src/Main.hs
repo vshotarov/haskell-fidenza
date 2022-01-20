@@ -48,8 +48,10 @@ fidenza args@(Args seed
                    -- drawing
                    chunksOverlap
                    bgColour
-                   aColours
-                   aStrokeOrFill
+                   colours
+                   randomBoil
+                   randomBoilSeed
+                   strokeOrFill
              ) = do
   let randomGen = mkStdGen seed
   let (noiseRandomGen,worldRandomGen) = split randomGen
@@ -65,15 +67,15 @@ fidenza args@(Args seed
   let curves = toCurves args chunkingRandomGen . toFamilies $ fst world ++ snd world
   let colouredCurves = colourCurves args colourRandomGen curves
   let drawFunc :: Path -> Drawing px ()
-      drawFunc | aStrokeOrFill == 0 = (stroke 1 JoinRound) (CapStraight 0, CapStraight 0)
-               | otherwise          = fill
+      drawFunc | strokeOrFill == 0 = (stroke 1 JoinRound) (CapStraight 0, CapStraight 0)
+               | otherwise         = fill
   ---- Visualising the vector field
   --writePng "test.png" $ renderDrawing width height (PixelRGBA8 125 125 125 255) $
   --    mapM_ (\(x,y) -> withTexture (uniformTexture (PixelRGBA8 0 0 0 255)) $ stroke 2 JoinRound (CapRound,CapRound) $
   --                        Line (V2 x y) (V2 (x + 20*(fst $ vf (x,y))) (y + 20*(snd $ vf (x,y))))) [(x,y) | x <- [5,25..(fromIntegral width-20)], y <- [5,25..(fromIntegral height-20)]]
   writePng "test.png" $ renderDrawing width height (aBgColour args) $
       mapM_ (\(curve,colour) ->  withTexture (uniformTexture colour) $
-                                   drawFunc $  sweepRectOnCurve curve) colouredCurves
+                                   drawFunc $ sweepRectOnCurve args curve) colouredCurves
 
 data LineSeg = LineSeg { lsP1 :: Point
                        , lsP2 :: Point
@@ -84,21 +86,28 @@ data LineSeg = LineSeg { lsP1 :: Point
                          deriving stock (Show)
 type Curve = [LineSeg]
 type ColouredCurve = (Curve, PixelRGBA8)
-sweepRectOnCurve :: Curve
+sweepRectOnCurve :: Args
+                 -> Curve
                  -> Path
-sweepRectOnCurve lineSegs =
+sweepRectOnCurve args lineSegs =
   Path firstTop True . map PathLineTo $ topPoints ++ (reverse $ firstBot:botPoints)
-  where chamfer (LineSeg { lsP1 = p1, lsP2 = p2, lsWidth = w, lsSkewAngle = angle }) =
-            ((p1+perp,p1-perp),(p2+perp,p2-perp))
+  where (topGen,botGen) = split . mkStdGen $ aRandomBoilSeed args
+        boils = zip (randomRs (-aRandomBoil args,aRandomBoil args) topGen)
+                    (randomRs (-aRandomBoil args,aRandomBoil args) botGen)
+        chamfer (boilTop, boilBot)
+                (LineSeg { lsP1 = p1, lsP2 = p2, lsWidth = w, lsSkewAngle = angle }) =
+            ((p1+perp^*(w/2+boilTop),p1-perp^*(w/2+boilBot)),
+             (p2+perp^*(w/2+boilTop),p2-perp^*(w/2+boilBot)))
             where (V2 x y) = p2 - p1
-                  (V2 px py) = (normalize $ (V2 (-y) x)) ^* (w/2)
+                  (V2 px py) = (normalize $ (V2 (-y) x))
                   perp = V2 (cos angle * px - sin angle * py)
                             (sin angle * px + cos angle * py)
-        (firstTop,firstBot) = fst . chamfer $ head lineSegs
+        (firstTop,firstBot) = fst . chamfer (head boils) $ head lineSegs
         (topPoints,botPoints) = foldr
-                                  (\lineSeg (topAcc,botAcc) ->
-                                    let (top,bot) = snd $ chamfer lineSeg
-                                     in (top:topAcc,bot:botAcc)) ([],[]) lineSegs
+                                  (\(ptBoils,lineSeg) (topAcc,botAcc) ->
+                                    let (top,bot) = snd $ chamfer ptBoils lineSeg
+                                     in (top:topAcc,bot:botAcc))
+                                    ([],[]) $ zip boils lineSegs
 
 colourCurves :: Args
              -> StdGen

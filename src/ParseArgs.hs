@@ -36,6 +36,8 @@ data Args = Args
     , aChunksOverlap :: Int
     , aBgColour :: PixelRGBA8
     , aColours :: [ColourProbability]
+    , aRandomBoil :: Float
+    , aRandomBoilSeed :: Int
     , aStrokeOrFill :: Int
     } deriving stock (Show)
 
@@ -69,6 +71,8 @@ recognizedArgs = Map.fromList $ map (\(x,y,v) -> (x, ArgDesc (x,y,v))) [
                  , ("bgColour","(235,228,216,255)","")
                  , ("colourScheme","0","")
                  , ("customColours","[]","")
+                 , ("randomBoil","0","")
+                 , ("randomBoilSeed","0","")
                  , ("strokeOrFill","1","")
                  ]
 recognizedArgNames :: [String]
@@ -124,6 +128,8 @@ parseArgs args = parsedArgs
                                        if length customColours > 0
                                        then customColours
                                        else colourSchemes !! colourScheme
+                          aRandomBoil = read $ getArg "randomBoil"
+                          aRandomBoilSeed = read $ getArg "randomBoilSeed"
                           aStrokeOrFill = read $ getArg "strokeOrFill"
                 _  -> error $ "Fidenza.parseArgs: Unrecognized args: " ++ unrecognizedArgs'
 
