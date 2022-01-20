@@ -36,6 +36,7 @@ data Args = Args
     , aChunksOverlap :: Int
     , aBgColour :: PixelRGBA8
     , aColours :: [PixelRGBA8]
+    , aStrokeOrFill :: Int
     } deriving stock (Show)
 
 data ArgDesc = ArgDesc (String,String,String)
@@ -68,6 +69,7 @@ recognizedArgs = Map.fromList $ map (\(x,y,v) -> (x, ArgDesc (x,y,v))) [
                  , ("bgColour","(235,228,216,255)","")
                  , ("colourScheme","0","")
                  , ("customColours","[]","")
+                 , ("strokeOrFill","1","")
                  ]
 recognizedArgNames :: [String]
 recognizedArgNames = map ("--"++) $ Map.keys recognizedArgs
@@ -121,6 +123,7 @@ parseArgs args = parsedArgs
                           aColours = if length customColours > 0
                                      then customColours
                                      else colourSchemes !! colourScheme
+                          aStrokeOrFill = read $ getArg "strokeOrFill"
                 _  -> error $ "Fidenza.parseArgs: Unrecognized args: " ++ unrecognizedArgs'
 
 -- Colour schemes

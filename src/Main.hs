@@ -49,6 +49,7 @@ fidenza args@(Args seed
                    chunksOverlap
                    bgColour
                    aColours
+                   aStrokeOrFill
              ) = do
   let randomGen = mkStdGen seed
   let (noiseRandomGen,worldRandomGen) = split randomGen
@@ -63,15 +64,16 @@ fidenza args@(Args seed
   let (chunkingRandomGen,colourRandomGen) = split randomGen
   let curves = toCurves args chunkingRandomGen . toFamilies $ fst world ++ snd world
   let colouredCurves = colourCurves args colourRandomGen curves
+  let drawFunc :: Path -> Drawing px ()
+      drawFunc | aStrokeOrFill == 0 = (stroke 1 JoinRound) (CapStraight 0, CapStraight 0)
+               | otherwise          = fill
   ---- Visualising the vector field
   --writePng "test.png" $ renderDrawing width height (PixelRGBA8 125 125 125 255) $
   --    mapM_ (\(x,y) -> withTexture (uniformTexture (PixelRGBA8 0 0 0 255)) $ stroke 2 JoinRound (CapRound,CapRound) $
   --                        Line (V2 x y) (V2 (x + 20*(fst $ vf (x,y))) (y + 20*(snd $ vf (x,y))))) [(x,y) | x <- [5,25..(fromIntegral width-20)], y <- [5,25..(fromIntegral height-20)]]
   writePng "test.png" $ renderDrawing width height (aBgColour args) $
       mapM_ (\(curve,colour) ->  withTexture (uniformTexture colour) $
-                           --stroke 1 (JoinRound) (CapStraight 0, CapStraight 0) $
-                             fill $ 
-                               sweepRectOnCurve curve) colouredCurves
+                                   drawFunc $  sweepRectOnCurve curve) colouredCurves
 
 data LineSeg = LineSeg { lsP1 :: Point
                        , lsP2 :: Point
