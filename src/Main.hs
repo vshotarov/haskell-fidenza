@@ -114,12 +114,19 @@ toCurves :: Args
 toCurves _ _ [] = []
 toCurves args randomGen families = concat chunks
   where toChunks _ [] = []
-        toChunks randomGen' lineSegs = if length lineSegs < chunkSize
+        toChunks randomGen' lineSegs = if length lineSegs < chunkSize'
                                        then [lineSegs]
                                        else chunk:(toChunks randomGen'' remainder)
-          where (chunkSize,randomGen'') = getRandomElem randomGen' (aChunkSizes args)
-                chunk = take chunkSize lineSegs
-                remainder = drop (chunkSize - aChunksOverlap args) lineSegs
+          where squareChunkSize = round . lsWidth $ head lineSegs
+                avgChunkSize = sum (aChunkSizes args) `div` length (aChunkSizes args)
+                (chunkSize,randomGen'') = getRandomElem randomGen' (aChunkSizes args)
+                distToSquareChunkSize = fromIntegral $ squareChunkSize - chunkSize
+                distToAvgChunkSize = fromIntegral $ avgChunkSize - chunkSize
+                chunkSize' = chunkSize
+                           + (round $ distToSquareChunkSize * aSquareBlocks args)
+                           + (round $ distToAvgChunkSize * aAvgBlockSize args)
+                chunk = take chunkSize' lineSegs
+                remainder = drop (chunkSize' - aChunksOverlap args) lineSegs
         chunks = map (uncurry toChunks)
                $ zip (iterate (fst . split) randomGen) families
 
