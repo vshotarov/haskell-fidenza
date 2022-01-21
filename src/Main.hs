@@ -1,7 +1,7 @@
 module Main (main) where
 
 import System.Environment (getArgs)
-import System.Random (StdGen, mkStdGen, split, randomR, randomRs, randoms)
+import System.Random (StdGen, mkStdGen, split, randomR, randomRs, randoms, random)
 import Codec.Picture( PixelRGBA8( .. ), writePng, Pixel8)
 import Graphics.Rasterific hiding (Vector)
 import Graphics.Rasterific.Linear (normalize, dot, distance, (^*))
@@ -13,7 +13,7 @@ import qualified Data.Map as Map (Map, fromList, insert)
 
 import ParseArgs (Args( .. ), VectorFieldGenerator( .. ), Vector,
                   helpString, parseArgs, readVectorFieldFromFile,
-                  sampleDistribution)
+                  sampleDistribution, mapDistribution)
 import qualified PerlinNoise as PNoise (noise2d)
 
 main :: IO ()
@@ -139,8 +139,10 @@ toCurves args randomGen families = concat chunks
                                        then [lineSegs]
                                        else chunk:(toChunks randomGen'' remainder)
           where squareChunkSize = round . lsWidth $ head lineSegs
-                avgChunkSize = sum (aChunkSizes args) `div` length (aChunkSizes args)
-                (chunkSize,randomGen'') = getRandomElem randomGen' (aChunkSizes args)
+                chunkSizes = mapDistribution fst $ aChunkSizes args
+                avgChunkSize = sum chunkSizes `div` length chunkSizes
+                (randomF,randomGen'') = random randomGen'
+                chunkSize = sampleDistribution (aChunkSizes args) randomF
                 distToSquareChunkSize = fromIntegral $ squareChunkSize - chunkSize
                 distToAvgChunkSize = fromIntegral $ avgChunkSize - chunkSize
                 chunkSize' = chunkSize
@@ -315,9 +317,3 @@ genLineSeg args vectorFunc randomGen others generation numAttempts = output
                                      others
                                      generation
                                      (numAttempts - 1)
-
-getRandomElem :: StdGen          -- random number generator
-              -> [a]             -- list of elements
-              -> (a,StdGen)      -- random element
-getRandomElem randomGen elements = (elements !! randomIndex, randomGen')
-    where (randomIndex,randomGen') = randomR (0, length elements - 1) randomGen

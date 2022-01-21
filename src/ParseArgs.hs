@@ -5,12 +5,12 @@ module ParseArgs ( Args(..)
                  , parseArgs
                  , readVectorFieldFromFile
                  , sampleDistribution
+                 , mapDistribution
                  ) where
 
 import Codec.Picture( PixelRGBA8( .. ), Pixel8)
 import Data.List (isPrefixOf, sortBy)
 import Data.List.Split (splitOn)
-import Debug.Trace
 
 import qualified Data.Map as Map (Map, fromList, findWithDefault, map, (!), keys)
 
@@ -26,7 +26,7 @@ data Args = Args
     , aMaxSteps :: Int
     , aMaxCurves :: Int
     , aMinLength :: Int
-    , aChunkSizes :: [Int]
+    , aChunkSizes :: Distribution Int
     , aSquareBlocks :: Float
     , aAvgBlockSize :: Float
       -- Curve generation options
@@ -66,9 +66,9 @@ recognizedArgs = Map.fromList $ map (\(x,y,v) -> (x, ArgDesc (x,y,v))) [
                  , ("avgBlockSize","0.0","")
                    -- generation options
                  , ("stepLength","1","")
-                 , ("widths","[2,10]","")
-                 , ("fertilities","[(25,0.1),(50,0.1),(150,0.2),(300,0.2),(600,0.2),(1000,0.1),(1500,0.1)]","")
-                 , ("skewAngles","[(-0.1,0.2),(-0.05,0.2),(0,0.2),(0.05,0.2),(0.1,0.2)]","")
+                 , ("widths","(2,60,4)","")
+                 , ("fertilities","(25,1500,25)","")
+                 , ("skewAngles","(-0.1,0.1,0.01)","")
                    -- drawing
                  , ("chunksOverlap","1","")
                  , ("bgColour","(235,228,216,255)","")
@@ -116,14 +116,14 @@ parseArgs args = parsedArgs
                           aMaxSteps = read $ getArg "maxSteps"
                           aMaxCurves = read $ getArg "maxCurves"
                           aMinLength = read $ getArg "minLength"
-                          aChunkSizes = readList' $ getArg "chunkSizes"
+                          aChunkSizes = readDistribution $ getArg "chunkSizes"
                           aSquareBlocks = read $ getArg "squareBlocks"
                           aAvgBlockSize = read $ getArg "avgBlockSize"
                           aStepLength = read $ getArg "stepLength"
                           _aCurveWidths = []
-                          aWidths = toDistribution $ read $ getArg "widths"
-                          aFertilities = toDistribution $ read $ getArg "fertilities"
-                          aSkewAngles = toDistribution $ read $ getArg "skewAngles"
+                          aWidths = readDistribution $ getArg "widths"
+                          aFertilities = readDistribution $ getArg "fertilities"
+                          aSkewAngles = readDistribution $ getArg "skewAngles"
                           aChunksOverlap = read $ getArg "chunksOverlap"
                           aBgColour = readColour $ getArg "bgColour"
                           colourScheme = read $ getArg "colourScheme"
@@ -138,20 +138,39 @@ parseArgs args = parsedArgs
 
 -- Distributions
 data Distribution a = Distribution [(a,Float)] 
-    deriving stock (Show)
 
-toDistribution :: [(a,Float)] -> Distribution a
-toDistribution = Distribution . sort' . normalize'
+instance (Show a) => Show (Distribution a) where
+    show (Distribution as) | length as > 5 =
+      "Distribution [" ++ show (head as) ++ ".." ++ show (last as) ++ "]"
+                           | otherwise     = "Distribution " ++ show as
+
+mapDistribution :: ((a,Float) -> b) -> Distribution a -> [b]
+mapDistribution f (Distribution as) = map f as
+
+readDistribution :: (Enum a, Read a, Num a) => String -> Distribution a
+readDistribution str@('[':'(':_) = toWeightedDistribution $ read str
+readDistribution str@('[':_)     = toUniformDistribution $ read str
+readDistribution str@('(':_)     = toUniformDistribution $ asList
+  where (bottom,top,step) = read str
+        asList = [bottom,(bottom+step)..top]
+readDistribution _ = error "Can't parse distribution"
+
+toWeightedDistribution :: [(a,Float)] -> Distribution a
+toWeightedDistribution = Distribution . sort' . normalize'
   where sort' = sortBy (\a b -> compare (snd a) (snd b))
         normalize' xs = map (\(v,prob) -> (v,prob/sum')) xs
             where sum' = sum $ map snd xs
+
+toUniformDistribution :: [a] -> Distribution a
+toUniformDistribution as = Distribution $ zip as $ repeat prob
+  where prob = 1.0 / (fromIntegral $ length as)
 
 sampleDistribution :: Distribution a -> Float -> a
 sampleDistribution (Distribution distAs) x =
   go x distAs
   where go _ [] = error "Can't sample empty distribution"
         go v ((a,prob):_)  | v <= prob  = a
-        go v ((a,prob):as) | otherwise = go (v-prob) as
+        go v ((_,prob):as) | otherwise = go (v-prob) as
 
 distNull :: Distribution a -> Bool
 distNull (Distribution []) = True
@@ -160,7 +179,7 @@ distNull _ = False
 -- Colour schemes
 luxe,blackAndWhite :: Distribution PixelRGBA8
 colourSchemes :: [Distribution PixelRGBA8]
-luxe = toDistribution
+luxe = toWeightedDistribution
        [(PixelRGBA8 41 166 145 255 , (1/13))
        ,(PixelRGBA8 84 62 46 255   , (1/13))
        ,(PixelRGBA8 49 95 140 255  , (1/13))
@@ -174,16 +193,11 @@ luxe = toDistribution
        ,(PixelRGBA8 224 215 197 255, (1/13))
        ,(PixelRGBA8 184 217 206 255, (1/13))
        ,(PixelRGBA8 84 62 46 255   , (1/13))]
-blackAndWhite = toDistribution
+blackAndWhite = toWeightedDistribution
                 [(PixelRGBA8 0 0 0 255, 0.5), (PixelRGBA8 255 255 255 255, 0.5)]
 colourSchemes = [luxe, blackAndWhite]
 
 -- Parsers
-readList' :: (Num a, Enum a, Read a) => String -> [a]
-readList' str@('(':_) = [bottom,(bottom+step)..top]
-  where (bottom,top,step) = read str
-readList' str = read str
-
 readColour :: String -> PixelRGBA8
 readColour str = tupleToColour $ read str
 
@@ -191,7 +205,7 @@ readColourProbs :: String -> Distribution PixelRGBA8
 readColourProbs [] = Distribution []
 readColourProbs "[]" = Distribution []
 readColourProbs ('[':str) =
-    toDistribution $ map (readOne . (++")")) $ init $ splitOn ")" $ init str
+    toWeightedDistribution $ map (readOne . (++")")) $ init $ splitOn ")" $ init str
     where readOne (',':str') = tupleToColourProb $ read str'
           readOne str' = tupleToColourProb $ read str'
 readColourProbs str = error $ "Failed interpreting colour list " ++ str
