@@ -6,6 +6,7 @@ import Codec.Picture( PixelRGBA8( .. ), writePng, Pixel8)
 import Graphics.Rasterific hiding (Vector)
 import Graphics.Rasterific.Linear (normalize, dot, distance, (^*))
 import Graphics.Rasterific.Texture (uniformTexture)
+import Data.List (sort)
 import Debug.Trace
 
 import qualified Data.Map as Map (Map, fromList, insert)
@@ -54,7 +55,8 @@ fidenza args@(Args seed
                    strokeOrFill
              ) = do
   let randomGen = mkStdGen seed
-  let (noiseRandomGen,worldRandomGen) = split randomGen
+  let (noiseRandomGen,randomGen') = split randomGen
+  let (worldRandomGen,widthRandomGen) = split randomGen'
   fieldFunc <- case vectorFieldGenerator of
     FromFile fp -> readVectorFieldFromFile (width,height) fp
     PerlinNoise freq ofs -> return (\(x,y) ->
@@ -62,10 +64,16 @@ fidenza args@(Args seed
             twoPi = 2 * (22/7)
             angle = twoPi * PNoise.noise2d p width noiseRandomGen
          in (cos angle, sin angle))
-  world <- simWorld args fieldFunc worldRandomGen (aMaxSteps args) 0 ([],[])
+  let widths = reverse
+             . sort
+             . take (aMaxCurves args)
+             . map (aCurveWidths args !!)
+             $ randomRs (0, length (aCurveWidths args) - 1) widthRandomGen
+  let args' = args { aCurveWidths = widths }
+  world <- simWorld args' fieldFunc worldRandomGen (aMaxSteps args') 0 ([],[])
   let (chunkingRandomGen,colourRandomGen) = split randomGen
-  let curves = toCurves args chunkingRandomGen . toFamilies $ fst world ++ snd world
-  let colouredCurves = colourCurves args colourRandomGen curves
+  let curves = toCurves args' chunkingRandomGen . toFamilies $ fst world ++ snd world
+  let colouredCurves = colourCurves args' colourRandomGen curves
   let drawFunc :: Path -> Drawing px ()
       drawFunc | strokeOrFill == 0 = (stroke 1 JoinRound) (CapStraight 0, CapStraight 0)
                | otherwise         = fill
@@ -73,9 +81,9 @@ fidenza args@(Args seed
   --writePng "test.png" $ renderDrawing width height (PixelRGBA8 125 125 125 255) $
   --    mapM_ (\(x,y) -> withTexture (uniformTexture (PixelRGBA8 0 0 0 255)) $ stroke 2 JoinRound (CapRound,CapRound) $
   --                        Line (V2 x y) (V2 (x + 20*(fst $ vf (x,y))) (y + 20*(snd $ vf (x,y))))) [(x,y) | x <- [5,25..(fromIntegral width-20)], y <- [5,25..(fromIntegral height-20)]]
-  writePng "test.png" $ renderDrawing width height (aBgColour args) $
+  writePng "test.png" $ renderDrawing width height (aBgColour args') $
       mapM_ (\(curve,colour) ->  withTexture (uniformTexture colour) $
-                                   drawFunc $ sweepRectOnCurve args curve) colouredCurves
+                                   drawFunc $ sweepRectOnCurve args' curve) colouredCurves
 
 data LineSeg = LineSeg { lsP1 :: Point
                        , lsP2 :: Point
@@ -286,9 +294,9 @@ genLineSeg args vectorFunc randomGen others generation numAttempts = output
           -- generate curve properties
           (x,randomGen1) = randomR (paddingF,paddedX) randomGen :: (Float,StdGen)
           (y,randomGen2) = randomR (paddingF,paddedY) randomGen1 :: (Float,StdGen)
-          (w,randomGen3) = getRandomElem randomGen2 $ aCurveWidths args :: (Float,StdGen)
-          (f,randomGen4) = getRandomElem randomGen3 $ aFertilities args :: (Int,StdGen)
-          (sw,randomGen') = getRandomElem randomGen4 $ aSkewAngles args :: (Float,StdGen)
+          w = aCurveWidths args !! generation
+          (f,randomGen3) = getRandomElem randomGen2 $ aFertilities args :: (Int,StdGen)
+          (sw,randomGen') = getRandomElem randomGen3 $ aSkewAngles args :: (Float,StdGen)
           -- generate line segment
           (vx, vy) = vectorFunc (x,y)
           lineSeg = LineSeg { lsP1 = V2 x y
