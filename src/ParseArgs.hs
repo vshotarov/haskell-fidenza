@@ -1,18 +1,16 @@
 module ParseArgs ( Args(..)
-                 , VectorFieldGenerator(..)
-                 , Vector
                  , helpString
                  , parseArgs
-                 , readVectorFieldFromFile
-                 , sampleDistribution
-                 , mapDistribution
                  ) where
 
 import Codec.Picture( PixelRGBA8( .. ), Pixel8)
-import Data.List (isPrefixOf, sortBy)
 import Data.List.Split (splitOn)
 
 import qualified Data.Map as Map (Map, fromList, findWithDefault, map, (!), keys)
+
+import VectorFieldGenerator (VectorFieldGenerator)
+import Distribution (Distribution(..), readDistribution, nullDistribution,
+                     toWeightedDistribution)
 
 data Args = Args
     { -- General options
@@ -128,7 +126,7 @@ parseArgs args = parsedArgs
                           aBgColour = readColour $ getArg "bgColour"
                           colourScheme = read $ getArg "colourScheme"
                           customColours = readColourProbs $ getArg "customColours"
-                          aColours = if not $ distNull customColours
+                          aColours = if not $ nullDistribution customColours
                                        then customColours
                                        else colourSchemes !! colourScheme
                           aRandomBoil = read $ getArg "randomBoil"
@@ -136,49 +134,10 @@ parseArgs args = parsedArgs
                           aStrokeOrFill = read $ getArg "strokeOrFill"
                 _  -> error $ "Fidenza.parseArgs: Unrecognized args: " ++ unrecognizedArgs'
 
--- Distributions
-data Distribution a = Distribution [(a,Float)] 
-
-instance (Show a) => Show (Distribution a) where
-    show (Distribution as) | length as > 5 =
-      "Distribution [" ++ show (head as) ++ ".." ++ show (last as) ++ "]"
-                           | otherwise     = "Distribution " ++ show as
-
-mapDistribution :: ((a,Float) -> b) -> Distribution a -> [b]
-mapDistribution f (Distribution as) = map f as
-
-readDistribution :: (Enum a, Read a, Num a) => String -> Distribution a
-readDistribution str@('[':'(':_) = toWeightedDistribution $ read str
-readDistribution str@('[':_)     = toUniformDistribution $ read str
-readDistribution str@('(':_)     = toUniformDistribution $ asList
-  where (bottom,top,step) = read str
-        asList = [bottom,(bottom+step)..top]
-readDistribution _ = error "Can't parse distribution"
-
-toWeightedDistribution :: [(a,Float)] -> Distribution a
-toWeightedDistribution = Distribution . sort' . normalize'
-  where sort' = sortBy (\a b -> compare (snd a) (snd b))
-        normalize' xs = map (\(v,prob) -> (v,prob/sum')) xs
-            where sum' = sum $ map snd xs
-
-toUniformDistribution :: [a] -> Distribution a
-toUniformDistribution as = Distribution $ zip as $ repeat prob
-  where prob = 1.0 / (fromIntegral $ length as)
-
-sampleDistribution :: Distribution a -> Float -> a
-sampleDistribution (Distribution distAs) x =
-  go x distAs
-  where go _ [] = error "Can't sample empty distribution"
-        go v ((a,prob):_)  | v <= prob  = a
-        go v ((_,prob):as) | otherwise = go (v-prob) as
-
-distNull :: Distribution a -> Bool
-distNull (Distribution []) = True
-distNull _ = False
-
 -- Colour schemes
 luxe,blackAndWhite :: Distribution PixelRGBA8
 colourSchemes :: [Distribution PixelRGBA8]
+
 luxe = toWeightedDistribution
        [(PixelRGBA8 41 166 145 255 , (1/13))
        ,(PixelRGBA8 84 62 46 255   , (1/13))
@@ -195,6 +154,7 @@ luxe = toWeightedDistribution
        ,(PixelRGBA8 84 62 46 255   , (1/13))]
 blackAndWhite = toWeightedDistribution
                 [(PixelRGBA8 0 0 0 255, 0.5), (PixelRGBA8 255 255 255 255, 0.5)]
+
 colourSchemes = [luxe, blackAndWhite]
 
 -- Parsers
@@ -215,44 +175,3 @@ tupleToColourProb (r,g,b,a,prob) = (PixelRGBA8 r g b a, prob)
 
 tupleToColour :: (Pixel8,Pixel8,Pixel8,Pixel8) -> PixelRGBA8
 tupleToColour (r,g,b,a) = PixelRGBA8 r g b a
-
--- Vector field generation options
-data VectorFieldGenerator = PerlinNoise Float Int
-                          | FromFile String
-                            deriving stock (Show)
-
-instance Read VectorFieldGenerator where
-    readsPrec _ str
-      | isPrefixOf "PerlinNoise " str =
-          let params = words $ drop (length "PerlinNoise ") str
-           in [(PerlinNoise (read $ params !! 0) (read $ params !! 1), "")]
-      | isPrefixOf "FromFile " str =
-          [(FromFile $ drop (length "FromFile ") $ str, "")]
-    readsPrec _ str = error $ "VectorFieldGenerator.read: Can't read " ++ str
-
-type Vector = (Float,Float)
-type VectorField = [[Vector]]
-
-readVectorFieldFromFile :: (Int,Int) -> FilePath -> IO (Vector -> Vector)
-readVectorFieldFromFile (width,height) fp = do
-    contents <- readFile fp
-    let toTuples [] = []
-        toTuples (_:[]) = error $ "Fidenza.readVectorFieldFromFile: malformatted file"
-        toTuples (x:y:xys) = (x,y):toTuples xys
-    let vectors = map (toTuples . (map read . words)) $ lines contents :: VectorField
-    let (lenX,lenY) = (length $ head vectors, length vectors)
-    return $ vectorFileNoiseFunc vectors (width,height) (lenX,lenY)
-
-vectorFileNoiseFunc :: VectorField -> (Int,Int) -> (Int,Int) -> Vector -> Vector
-vectorFileNoiseFunc vectors (width,height) (lenX,lenY) (x,y) = vec
-  where (px,py) = (x/fromIntegral width, y/fromIntegral height)
-        (px',py') = (px * (fromIntegral lenX-1), py * (fromIntegral lenY-1))
-        (binX,binY) = (floor px', floor py')
-        (vXY,vXY1,vX1Y,vX1Y1) = ( (!! binX) $ vectors !! binY 
-                                , (!! binX) $ vectors !! (binY+1)
-                                , (!! (binX+1)) $ vectors !! binY 
-                                , (!! (binX+1)) $ vectors !! (binY+1)) 
-        (u,v) = (px' - fromIntegral binX, py' - fromIntegral binY)
-        lerpV (x1,y1) (x2,y2) w = (x1 + (x2 - x1) * w, y1 + (y2 - y1) * w)
-        vec = lerpV (lerpV vXY vX1Y u)
-                    (lerpV vXY1 vX1Y1 u) v

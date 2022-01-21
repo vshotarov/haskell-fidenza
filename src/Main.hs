@@ -2,18 +2,18 @@ module Main (main) where
 
 import System.Environment (getArgs)
 import System.Random (StdGen, mkStdGen, split, randomR, randomRs, randoms, random)
-import Codec.Picture( PixelRGBA8( .. ), writePng, Pixel8)
-import Graphics.Rasterific hiding (Vector)
+import Codec.Picture( PixelRGBA8( .. ), writePng)
+import Graphics.Rasterific
 import Graphics.Rasterific.Linear (normalize, dot, distance, (^*))
 import Graphics.Rasterific.Texture (uniformTexture)
 import Data.List (sort)
 import Debug.Trace
 
-import qualified Data.Map as Map (Map, fromList, insert)
+import ParseArgs (Args( .. ), helpString, parseArgs)
+import VectorFieldGenerator (VectorFieldGenerator(..), VectorFieldFunc,
+                             readVectorFieldFromFile)
+import Distribution (mapDistribution, sampleDistribution)
 
-import ParseArgs (Args( .. ), VectorFieldGenerator( .. ), Vector,
-                  helpString, parseArgs, readVectorFieldFromFile,
-                  sampleDistribution, mapDistribution)
 import qualified PerlinNoise as PNoise (noise2d)
 
 main :: IO ()
@@ -29,33 +29,13 @@ main = do
 -- and another to colour and draw them, so we can experiment with different 
 -- colour options without having to rerun the whole algorithm
 fidenza :: Args -> IO ()
-fidenza args@(Args seed
-                   width
-                   height
-                   collisionMargin
-                   padding
-                   vectorFieldGenerator
-                   numGenerationAttempts
-                   maxSteps
-                   maxCurves
-                   minLength
-                   chunkSizes
-                   squareBlocks
-                   avgBlockSize
-                   -- curve generation options
-                   stepLength
-                   curveWidths
-                   widths
-                   fertilities
-                   skewAngles
-                   -- drawing
-                   chunksOverlap
-                   bgColour
-                   colours
-                   randomBoil
-                   randomBoilSeed
-                   strokeOrFill
-             ) = do
+fidenza args@(Args { aSeed = seed
+                   , aWidth = width
+                   , aHeight = height
+                   , aVectorFieldGenerator = vectorFieldGenerator
+                   , aMaxCurves = maxCurves
+                   , aWidths = widths
+                   , aStrokeOrFill = strokeOrFill }) = do
   let randomGen = mkStdGen seed
   let (noiseRandomGen,randomGen') = split randomGen
   let (worldRandomGen,widthRandomGen) = split randomGen'
@@ -163,12 +143,14 @@ toFamilies allLineSegs = if length firstFamily > 1 then firstFamily:families
         familyFold ((first:siblings):others) lineSeg
           | lsFamily first == lsFamily lineSeg = (lineSeg:first:siblings):others
           | otherwise                          = [lineSeg]:(first:siblings):others
-        (firstFamily:families) = foldl familyFold [] allLineSegs
+        familyFold _ _ = error "Can't fold families. An empty list maybe?"
+        foldedFamilies = foldl familyFold [] allLineSegs
+        (firstFamily,families) = (head foldedFamilies, tail foldedFamilies)
 
 type World = ( [LineSeg]   -- fertile
              , [LineSeg] ) -- infertile
 simWorld :: Args               -- fidenza parameters
-         -> (Vector -> Vector) -- vector field function
+         -> VectorFieldFunc    -- vector field function
          -> StdGen             -- random number generator
          -> Int                -- keeping track of number of steps
          -> Int                -- curve generation a.k.a current number of curves
@@ -198,7 +180,7 @@ simWorld args vectorFunc randomGen steps numCurves world =
         stepWorld args vectorFunc world
 
 stepWorld :: Args               -- fidenza parameters
-          -> (Vector -> Vector) -- vector field function
+          -> VectorFieldFunc    -- vector field function
           -> World              -- all fertile and infertile curves
           -> World              -- updated world
 stepWorld _ _ ([],infertile) = ([],infertile)
@@ -241,7 +223,7 @@ doesLineSegCollide :: Args    -- fidenza parameters
                    -> LineSeg -- line segment p
                    -> LineSeg -- line segment s
                    -> Bool
-doesLineSegCollide args p@(LineSeg { lsP1 = p1, lsP2 = p2, lsWidth = pw })
+doesLineSegCollide args (LineSeg { lsP1 = p1, lsP2 = p2, lsWidth = pw })
                         s@(LineSeg { lsP1 = s1, lsP2 = s2, lsWidth = sw }) = dist < minDist
   where p2OnS = closestPtOnLineSeg p2 s
         dist = distance p2 p2OnS
@@ -258,12 +240,12 @@ closestPtOnLineSeg :: Point   -- point to find closest one on line seg to
                    -> Point
 closestPtOnLineSeg p (LineSeg { lsP1 = p1, lsP2 = p2 }) = p1 + v ^* t'
     where v@(V2 vx vy) = p2 - p1
-          l2 = vx^2 + vy^2
+          l2 = (vx*vx) + (vy*vy)
           t = (dot (p - p1) v) / l2
           t' = min (max 0 t) 1
 
 stepLineSeg :: Args                     -- fidenza parameters
-            -> (Vector -> Vector)       -- vector field function
+            -> VectorFieldFunc          -- vector field function
             -> LineSeg                  -- line seg to grow
             -> (LineSeg, Maybe LineSeg) -- old line seg and potentially a new one
 stepLineSeg _ _ ls@(LineSeg { lsFertility = 0 }) = (ls,Nothing)
@@ -275,7 +257,7 @@ stepLineSeg args vectorFunc ls@(LineSeg { lsP2 = V2 x y }) = (ls, Just newLineSe
                             lsFertility = lsFertility ls - 1 }
 
 genLineSeg :: Args               -- fidenza parameters
-           -> (Vector -> Vector) -- vector field function
+           -> VectorFieldFunc    -- vector field function
            -> StdGen             -- random number generator
            -> [LineSeg]          -- collision line segments
            -> Int                -- number of curves
@@ -288,8 +270,8 @@ genLineSeg args vectorFunc randomGen others generation numAttempts = output
           (paddedX,paddedY) = (fromIntegral width - paddingF
                               ,fromIntegral height - paddingF)
           -- generate curve properties
-          sampleHelper dist gen = (sampleDistribution dist x, gen')
-            where (x,gen') = randomR (0,1) gen
+          sampleHelper dist gen = (sampleDistribution dist x', gen')
+            where (x',gen') = randomR (0,1) gen
           (x,randomGen1) = randomR (paddingF,paddedX) randomGen :: (Float,StdGen)
           (y,randomGen2) = randomR (paddingF,paddedY) randomGen1 :: (Float,StdGen)
           w = _aCurveWidths args !! generation
