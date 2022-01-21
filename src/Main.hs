@@ -1,7 +1,7 @@
 module Main (main) where
 
 import System.Environment (getArgs)
-import System.Random (StdGen, mkStdGen, split, randomR, randomRs)
+import System.Random (StdGen, mkStdGen, split, randomR, randomRs, randoms)
 import Codec.Picture( PixelRGBA8( .. ), writePng, Pixel8)
 import Graphics.Rasterific hiding (Vector)
 import Graphics.Rasterific.Linear (normalize, dot, distance, (^*))
@@ -12,7 +12,8 @@ import Debug.Trace
 import qualified Data.Map as Map (Map, fromList, insert)
 
 import ParseArgs (Args( .. ), VectorFieldGenerator( .. ), Vector,
-                  helpString, parseArgs, readVectorFieldFromFile)
+                  helpString, parseArgs, readVectorFieldFromFile,
+                  sampleDistribution)
 import qualified PerlinNoise as PNoise (noise2d)
 
 main :: IO ()
@@ -44,6 +45,7 @@ fidenza args@(Args seed
                    -- curve generation options
                    stepLength
                    curveWidths
+                   widths
                    fertilities
                    skewAngles
                    -- drawing
@@ -64,12 +66,12 @@ fidenza args@(Args seed
             twoPi = 2 * (22/7)
             angle = twoPi * PNoise.noise2d p width noiseRandomGen
          in (cos angle, sin angle))
-  let widths = reverse
-             . sort
-             . take (aMaxCurves args)
-             . map (aCurveWidths args !!)
-             $ randomRs (0, length (aCurveWidths args) - 1) widthRandomGen
-  let args' = args { aCurveWidths = widths }
+  let widths' = reverse
+              . sort
+              . take maxCurves
+              . map (sampleDistribution widths)
+              $ randoms widthRandomGen
+  let args' = args { _aCurveWidths = widths' }
   world <- simWorld args' fieldFunc worldRandomGen (aMaxSteps args') 0 ([],[])
   let (chunkingRandomGen,colourRandomGen) = split randomGen
   let curves = toCurves args' chunkingRandomGen . toFamilies $ fst world ++ snd world
@@ -123,16 +125,8 @@ colourCurves :: Args
              -> [ColouredCurve]
 colourCurves _ _ [] = []
 colourCurves args randomGen curves = zip curves colours
-  where colours = map (sampleColours args)
+  where colours = map (sampleDistribution (aColours args))
                 $ randomRs (0.0, 1.0) $ snd $ split randomGen
-
-sampleColours :: Args       -- fidenza parameters
-              -> Float      -- random value between 0 and 1
-              -> PixelRGBA8
-sampleColours args x = go x (aColours args)
-  where go _ [] = error "Couldn't sample colour"
-        go v ((c,prob):_)       | v < prob  = c
-        go v ((c,prob):colours) | otherwise = go (v-prob) colours
 
 toCurves :: Args
          -> StdGen
@@ -292,11 +286,13 @@ genLineSeg args vectorFunc randomGen others generation numAttempts = output
           (paddedX,paddedY) = (fromIntegral width - paddingF
                               ,fromIntegral height - paddingF)
           -- generate curve properties
+          sampleHelper dist gen = (sampleDistribution dist x, gen')
+            where (x,gen') = randomR (0,1) gen
           (x,randomGen1) = randomR (paddingF,paddedX) randomGen :: (Float,StdGen)
           (y,randomGen2) = randomR (paddingF,paddedY) randomGen1 :: (Float,StdGen)
-          w = aCurveWidths args !! generation
-          (f,randomGen3) = getRandomElem randomGen2 $ aFertilities args :: (Int,StdGen)
-          (sw,randomGen') = getRandomElem randomGen3 $ aSkewAngles args :: (Float,StdGen)
+          w = _aCurveWidths args !! generation
+          (f,randomGen3) = sampleHelper (aFertilities args) randomGen2
+          (sw,randomGen') = sampleHelper (aSkewAngles args) randomGen3
           -- generate line segment
           (vx, vy) = vectorFunc (x,y)
           lineSeg = LineSeg { lsP1 = V2 x y

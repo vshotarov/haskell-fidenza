@@ -4,11 +4,13 @@ module ParseArgs ( Args(..)
                  , helpString
                  , parseArgs
                  , readVectorFieldFromFile
+                 , sampleDistribution
                  ) where
 
 import Codec.Picture( PixelRGBA8( .. ), Pixel8)
 import Data.List (isPrefixOf, sortBy)
 import Data.List.Split (splitOn)
+import Debug.Trace
 
 import qualified Data.Map as Map (Map, fromList, findWithDefault, map, (!), keys)
 
@@ -29,13 +31,14 @@ data Args = Args
     , aAvgBlockSize :: Float
       -- Curve generation options
     , aStepLength :: Float
-    , aCurveWidths :: [Float]
-    , aFertilities :: [Int]
-    , aSkewAngles :: [Float]
+    , _aCurveWidths :: [Float]
+    , aWidths :: Distribution Float
+    , aFertilities :: Distribution Int
+    , aSkewAngles :: Distribution Float
       -- Drawing
     , aChunksOverlap :: Int
     , aBgColour :: PixelRGBA8
-    , aColours :: [ColourProbability]
+    , aColours :: Distribution PixelRGBA8
     , aRandomBoil :: Float
     , aRandomBoilSeed :: Int
     , aStrokeOrFill :: Int
@@ -63,9 +66,9 @@ recognizedArgs = Map.fromList $ map (\(x,y,v) -> (x, ArgDesc (x,y,v))) [
                  , ("avgBlockSize","0.0","")
                    -- generation options
                  , ("stepLength","1","")
-                 , ("curveWidths","[2,10]","")
-                 , ("fertilities","(25,1000,25)","")
-                 , ("skewAngles","(-0.1,0.1,0.02)","")
+                 , ("widths","[2,10]","")
+                 , ("fertilities","[(25,0.1),(50,0.1),(150,0.2),(300,0.2),(600,0.2),(1000,0.1),(1500,0.1)]","")
+                 , ("skewAngles","[(-0.1,0.2),(-0.05,0.2),(0,0.2),(0.05,0.2),(0.1,0.2)]","")
                    -- drawing
                  , ("chunksOverlap","1","")
                  , ("bgColour","(235,228,216,255)","")
@@ -117,15 +120,15 @@ parseArgs args = parsedArgs
                           aSquareBlocks = read $ getArg "squareBlocks"
                           aAvgBlockSize = read $ getArg "avgBlockSize"
                           aStepLength = read $ getArg "stepLength"
-                          aCurveWidths = readList' $ getArg "curveWidths"
-                          aFertilities = readList' $ getArg "fertilities"
-                          aSkewAngles = readList' $ getArg "skewAngles"
+                          _aCurveWidths = []
+                          aWidths = toDistribution $ read $ getArg "widths"
+                          aFertilities = toDistribution $ read $ getArg "fertilities"
+                          aSkewAngles = toDistribution $ read $ getArg "skewAngles"
                           aChunksOverlap = read $ getArg "chunksOverlap"
                           aBgColour = readColour $ getArg "bgColour"
                           colourScheme = read $ getArg "colourScheme"
                           customColours = readColourProbs $ getArg "customColours"
-                          aColours = sortBy (\a b -> compare (snd a) (snd b)) $
-                                       if length customColours > 0
+                          aColours = if not $ distNull customColours
                                        then customColours
                                        else colourSchemes !! colourScheme
                           aRandomBoil = read $ getArg "randomBoil"
@@ -133,10 +136,32 @@ parseArgs args = parsedArgs
                           aStrokeOrFill = read $ getArg "strokeOrFill"
                 _  -> error $ "Fidenza.parseArgs: Unrecognized args: " ++ unrecognizedArgs'
 
+-- Distributions
+data Distribution a = Distribution [(a,Float)] 
+    deriving stock (Show)
+
+toDistribution :: [(a,Float)] -> Distribution a
+toDistribution = Distribution . sort' . normalize'
+  where sort' = sortBy (\a b -> compare (snd a) (snd b))
+        normalize' xs = map (\(v,prob) -> (v,prob/sum')) xs
+            where sum' = sum $ map snd xs
+
+sampleDistribution :: Distribution a -> Float -> a
+sampleDistribution (Distribution distAs) x =
+  go x distAs
+  where go _ [] = error "Can't sample empty distribution"
+        go v ((a,prob):_)  | v <= prob  = a
+        go v ((a,prob):as) | otherwise = go (v-prob) as
+
+distNull :: Distribution a -> Bool
+distNull (Distribution []) = True
+distNull _ = False
+
 -- Colour schemes
-luxe,blackAndWhite :: [ColourProbability]
-colourSchemes :: [[ColourProbability]]
-luxe = [(PixelRGBA8 41 166 145 255 , (1/13))
+luxe,blackAndWhite :: Distribution PixelRGBA8
+colourSchemes :: [Distribution PixelRGBA8]
+luxe = toDistribution
+       [(PixelRGBA8 41 166 145 255 , (1/13))
        ,(PixelRGBA8 84 62 46 255   , (1/13))
        ,(PixelRGBA8 49 95 140 255  , (1/13))
        ,(PixelRGBA8 252 188 25 255 , (1/13))
@@ -149,7 +174,8 @@ luxe = [(PixelRGBA8 41 166 145 255 , (1/13))
        ,(PixelRGBA8 224 215 197 255, (1/13))
        ,(PixelRGBA8 184 217 206 255, (1/13))
        ,(PixelRGBA8 84 62 46 255   , (1/13))]
-blackAndWhite = [(PixelRGBA8 0 0 0 255, 0.5), (PixelRGBA8 255 255 255 255, 0.5)]
+blackAndWhite = toDistribution
+                [(PixelRGBA8 0 0 0 255, 0.5), (PixelRGBA8 255 255 255 255, 0.5)]
 colourSchemes = [luxe, blackAndWhite]
 
 -- Parsers
@@ -161,16 +187,16 @@ readList' str = read str
 readColour :: String -> PixelRGBA8
 readColour str = tupleToColour $ read str
 
-readColourProbs :: String -> [ColourProbability]
-readColourProbs [] = []
-readColourProbs "[]" = []
-readColourProbs ('[':str) = map (readOne . (++")")) $ init $ splitOn ")" $ init str
+readColourProbs :: String -> Distribution PixelRGBA8
+readColourProbs [] = Distribution []
+readColourProbs "[]" = Distribution []
+readColourProbs ('[':str) =
+    toDistribution $ map (readOne . (++")")) $ init $ splitOn ")" $ init str
     where readOne (',':str') = tupleToColourProb $ read str'
           readOne str' = tupleToColourProb $ read str'
 readColourProbs str = error $ "Failed interpreting colour list " ++ str
 
-type ColourProbability = (PixelRGBA8, Float)
-tupleToColourProb :: (Pixel8,Pixel8,Pixel8,Pixel8,Float) -> ColourProbability
+tupleToColourProb :: (Pixel8,Pixel8,Pixel8,Pixel8,Float) -> (PixelRGBA8, Float)
 tupleToColourProb (r,g,b,a,prob) = (PixelRGBA8 r g b a, prob)
 
 tupleToColour :: (Pixel8,Pixel8,Pixel8,Pixel8) -> PixelRGBA8
