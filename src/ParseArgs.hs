@@ -25,6 +25,7 @@ data Args = Args
     , aMaxCurves :: Int
     , aMinLength :: Int
     , aChunkSizes :: Distribution Int
+    , aStopChunkingAt :: (Int,Int)
     , aSquareBlocks :: Float
     , aAvgBlockSize :: Float
       -- Curve generation options
@@ -60,6 +61,7 @@ recognizedArgs = Map.fromList $ map (\(x,y,v) -> (x, ArgDesc (x,y,v))) [
                  , ("maxCurves","100","")
                  , ("minLength","15","")
                  , ("chunkSizes","[10,15]","")
+                 , ("stopChunkingAt","(10000,10000)","")
                  , ("squareBlocks","0.0","")
                  , ("avgBlockSize","0.0","")
                    -- generation options
@@ -115,6 +117,7 @@ parseArgs args = parsedArgs
                           aMaxCurves = read $ getArg "maxCurves"
                           aMinLength = read $ getArg "minLength"
                           aChunkSizes = readDistribution $ getArg "chunkSizes"
+                          aStopChunkingAt = read $ getArg "stopChunkingAt"
                           aSquareBlocks = read $ getArg "squareBlocks"
                           aAvgBlockSize = read $ getArg "avgBlockSize"
                           aStepLength = read $ getArg "stepLength"

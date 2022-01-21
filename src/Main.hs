@@ -113,15 +113,17 @@ toCurves :: Args
          -> [[LineSeg]]
          -> [Curve]
 toCurves _ _ [] = []
-toCurves args randomGen families = concat chunks
-  where toChunks _ [] = []
-        toChunks randomGen' lineSegs = if length lineSegs < chunkSize'
-                                       then [lineSegs]
-                                       else chunk:(toChunks randomGen'' remainder)
+toCurves args randomGen families = filter ((>0) . length) $ concat chunks
+  where toChunks _ _ [] = []
+        toChunks lenSoFar randomGen' lineSegs = if length lineSegs < chunkSize'
+                                                then [lineSegs]
+                                                else chunk:remainder'
           where squareChunkSize = round . lsWidth $ head lineSegs
                 chunkSizes = mapDistribution fst $ aChunkSizes args
                 avgChunkSize = sum chunkSizes `div` length chunkSizes
                 (randomF,randomGen'') = random randomGen'
+                (boundaryStart,randomGen''') = randomR (aStopChunkingAt args) randomGen''
+                (boundaryEnd,randomGen'''') = randomR (aStopChunkingAt args) randomGen'''
                 chunkSize = sampleDistribution (aChunkSizes args) randomF
                 distToSquareChunkSize = fromIntegral $ squareChunkSize - chunkSize
                 distToAvgChunkSize = fromIntegral $ avgChunkSize - chunkSize
@@ -130,7 +132,14 @@ toCurves args randomGen families = concat chunks
                            + (round $ distToAvgChunkSize * aAvgBlockSize args)
                 chunk = take chunkSize' lineSegs
                 remainder = drop (chunkSize' - aChunksOverlap args) lineSegs
-        chunks = map (uncurry toChunks)
+                remainderMid = take (length remainder - (boundaryStart + boundaryEnd))
+                               remainder
+                remainderEnd = drop (length remainderMid - 1) remainder
+                remainder' =
+                    if lenSoFar > boundaryStart
+                    then remainderMid:(toChunks 0 randomGen''' remainderEnd)
+                    else toChunks (lenSoFar + length chunk) randomGen'''' remainder
+        chunks = map (\(gen,family) -> toChunks 0 gen family)
                $ zip (iterate (fst . split) randomGen) families
 
 toFamilies ::[LineSeg] -- list of line segs to group by family
