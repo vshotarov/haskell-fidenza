@@ -70,8 +70,8 @@ recognizedArgs = Map.fromList $ map (\(x,y,v) -> (x, ArgDesc (x,y,v))) [
                  , ("skewAngles","(-0.1,0.1,0.01)","")
                    -- drawing
                  , ("chunksOverlap","1","")
-                 , ("bgColour","(235,228,216,255)","")
                  , ("colourScheme","0","")
+                 , ("customBgColour","","")
                  , ("customColours","[]","")
                  , ("randomBoil","0","")
                  , ("randomBoilSeed","0","")
@@ -125,12 +125,14 @@ parseArgs args = parsedArgs
                           aFertilities = readDistribution $ getArg "fertilities"
                           aSkewAngles = readDistribution $ getArg "skewAngles"
                           aChunksOverlap = read $ getArg "chunksOverlap"
-                          aBgColour = readColour $ getArg "bgColour"
                           colourScheme = read $ getArg "colourScheme"
                           customColours = readColourProbs $ getArg "customColours"
                           aColours = if not $ nullDistribution customColours
-                                       then customColours
-                                       else colourSchemes !! colourScheme
+                                     then customColours
+                                     else snd $ colourSchemes !! colourScheme
+                          aBgColour = if not $ null $ getArg "customBgColour"
+                                      then readColour $ getArg "customBgColour"
+                                      else fst $ colourSchemes !! colourScheme
                           aRandomBoil = read $ getArg "randomBoil"
                           aRandomBoilSeed = read $ getArg "randomBoilSeed"
                           aStrokeOrFill = read $ getArg "strokeOrFill"
