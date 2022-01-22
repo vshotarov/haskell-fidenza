@@ -60,12 +60,11 @@ baked = (PixelRGBA8  63 140  70 255,
                                  ,(PixelRGBA8  99  77  58 255, 0.00)])
 
 politique = (PixelRGBA8 235 228 216 255,
-             toWeightedDistribution [(PixelRGBA8 235 228 216 255, 0.29)
-                                     ,(PixelRGBA8 252 210 101 255, 0.27)
-                                     ,(PixelRGBA8 250 248 245 255, 0.20)
-                                     ,(PixelRGBA8 247 177 161 255, 0.09)
-                                     ,(PixelRGBA8  49  95 140 255, 0.02)
-                                     ,(PixelRGBA8 219  79  84 255, 0.02)])
+             toWeightedDistribution [(PixelRGBA8 252 210 101 255, 0.16)
+                                    ,(PixelRGBA8 250 248 245 255, 0.20)
+                                    ,(PixelRGBA8 247 177 161 255, 0.09)
+                                    ,(PixelRGBA8  49  95 140 255, 0.03)
+                                    ,(PixelRGBA8 219  79  84 255, 0.03)])
 cool = (PixelRGBA8 235 228 216 255,
         toWeightedDistribution [(PixelRGBA8 128 171 192 255, 0.20)
                                ,(PixelRGBA8  58 101 143 255, 0.20)
