@@ -3,14 +3,13 @@ module ParseArgs ( Args(..)
                  , parseArgs
                  ) where
 
-import Codec.Picture( PixelRGBA8( .. ), Pixel8)
-import Data.List.Split (splitOn)
+import Codec.Picture (PixelRGBA8( .. ))
 
 import qualified Data.Map as Map (Map, fromList, findWithDefault, map, (!), keys)
 
 import VectorFieldGenerator (VectorFieldGenerator)
-import Distribution (Distribution(..), readDistribution, nullDistribution,
-                     toWeightedDistribution)
+import Distribution (Distribution(..), readDistribution, nullDistribution)
+import ColourSchemes (colourSchemes, readColour, readColourProbs)
 
 data Args = Args
     { -- General options
@@ -136,45 +135,3 @@ parseArgs args = parsedArgs
                           aRandomBoilSeed = read $ getArg "randomBoilSeed"
                           aStrokeOrFill = read $ getArg "strokeOrFill"
                 _  -> error $ "Fidenza.parseArgs: Unrecognized args: " ++ unrecognizedArgs'
-
--- Colour schemes
-luxe,blackAndWhite :: Distribution PixelRGBA8
-colourSchemes :: [Distribution PixelRGBA8]
-
-luxe = toWeightedDistribution
-       [(PixelRGBA8 41 166 145 255 , (1/13))
-       ,(PixelRGBA8 84 62 46 255   , (1/13))
-       ,(PixelRGBA8 49 95 140 255  , (1/13))
-       ,(PixelRGBA8 252 188 25 255 , (1/13))
-       ,(PixelRGBA8 59 43 32 255   , (1/13))
-       ,(PixelRGBA8 31 51 89 255   , (1/13))
-       ,(PixelRGBA8 252 210 101 255, (1/13))
-       ,(PixelRGBA8 219 79 84 255  , (1/13))
-       ,(PixelRGBA8 252 188 25 255 , (1/13))
-       ,(PixelRGBA8 59 43 32 255   , (1/13))
-       ,(PixelRGBA8 224 215 197 255, (1/13))
-       ,(PixelRGBA8 184 217 206 255, (1/13))
-       ,(PixelRGBA8 84 62 46 255   , (1/13))]
-blackAndWhite = toWeightedDistribution
-                [(PixelRGBA8 0 0 0 255, 0.5), (PixelRGBA8 255 255 255 255, 0.5)]
-
-colourSchemes = [luxe, blackAndWhite]
-
--- Parsers
-readColour :: String -> PixelRGBA8
-readColour str = tupleToColour $ read str
-
-readColourProbs :: String -> Distribution PixelRGBA8
-readColourProbs [] = Distribution []
-readColourProbs "[]" = Distribution []
-readColourProbs ('[':str) =
-    toWeightedDistribution $ map (readOne . (++")")) $ init $ splitOn ")" $ init str
-    where readOne (',':str') = tupleToColourProb $ read str'
-          readOne str' = tupleToColourProb $ read str'
-readColourProbs str = error $ "Failed interpreting colour list " ++ str
-
-tupleToColourProb :: (Pixel8,Pixel8,Pixel8,Pixel8,Float) -> (PixelRGBA8, Float)
-tupleToColourProb (r,g,b,a,prob) = (PixelRGBA8 r g b a, prob)
-
-tupleToColour :: (Pixel8,Pixel8,Pixel8,Pixel8) -> PixelRGBA8
-tupleToColour (r,g,b,a) = PixelRGBA8 r g b a

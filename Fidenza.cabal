@@ -28,6 +28,7 @@ executable Fidenza
                  , ParseArgs
                  , VectorFieldGenerator
                  , Distribution
+                 , ColourSchemes
 
     build-depends:
         base ^>=4.14.3.0
