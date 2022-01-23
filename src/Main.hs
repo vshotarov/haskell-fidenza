@@ -4,7 +4,7 @@ import System.Environment (getArgs)
 import System.Random (StdGen, mkStdGen, split, randomR, randomRs, randoms, random)
 import Codec.Picture( PixelRGBA8( .. ), writePng)
 import Graphics.Rasterific
-import Graphics.Rasterific.Linear (normalize, dot, distance, (^*))
+import Graphics.Rasterific.Linear (normalize, dot, distance, (^*), (^/))
 import Graphics.Rasterific.Texture (uniformTexture)
 import Data.List (sort)
 import Debug.Trace
@@ -48,6 +48,12 @@ fidenza args@(Args { aSeed = seed
             twoPi = 2 * (22/7)
             angle = twoPi * PNoise.noise2d p width noiseRandomGen
          in (cos angle, sin angle))
+  let softFreq = 0.016
+  let softFieldFunc (x,y) =
+        let p = ((x+100)*softFreq,(y+120)*softFreq)
+            twoPi = 2 * (22/7)
+            angle = twoPi * PNoise.noise2d p width noiseRandomGen
+         in (cos angle, sin angle)
   let widths' = reverse
               . sort
               . take maxCurves
@@ -72,7 +78,8 @@ fidenza args@(Args { aSeed = seed
   --                        Line (V2 x y) (V2 (x + 20*(fst $ vf (x,y))) (y + 20*(snd $ vf (x,y))))) [(x,y) | x <- [5,25..(fromIntegral width-20)], y <- [5,25..(fromIntegral height-20)]]
   writePng "test.png" $ renderDrawing width height (aBgColour args') $
       mapM_ (\(curve,colour) ->  withTexture (uniformTexture colour) $
-                                   drawFunc $ sweepRectOnCurve args' curve) colouredCurves
+                                   --drawFunc $ sweepRectOnCurve args' curve) colouredCurves
+                                   drawSoftCurve args curve softFieldFunc) colouredCurves
 
 data LineSeg = LineSeg { lsP1 :: Point
                        , lsP2 :: Point
@@ -105,6 +112,37 @@ sweepRectOnCurve args lineSegs =
                                     let (top,bot) = snd $ chamfer ptBoils lineSeg
                                      in (top:topAcc,bot:botAcc))
                                     ([],[]) $ zip boils lineSegs
+
+drawSoftCurve :: Args
+              -> Curve
+              -> VectorFieldFunc
+              -> Drawing PixelRGBA8 ()
+drawSoftCurve args lineSegs vfunc =
+  let getPerp lineSeg = normalize $ V2 (-y) x
+        where (V2 x y) = lsP2 lineSeg - lsP1 lineSeg
+      firstPair = (p1 + perp ^* (w/2), p1 - perp ^* (w/2), normalize (p2 - p1))
+        where ls@(LineSeg { lsP1 = p1, lsP2 = p2, lsWidth = w }) = head lineSegs
+              perp = getPerp ls
+      toPair ls@(LineSeg { lsP1 = p1, lsP2 = p2, lsWidth = w }) =
+        (p2 + perp ^* (w/2), p2 - perp ^* (w/2), normalize (p2 - p1))
+        where perp = getPerp ls
+      everyNth _ [] = []
+      everyNth n (x:xs) = x:(everyNth n $ drop (n-1) xs)
+      pairs = map toPair $ everyNth 11 lineSegs
+      nPaths = min 220 $ (lsWidth $ head lineSegs) * 1.8
+      toPoint gen n (p1,p2,v) = p1 + (step ^* n) + ((normalize step) ^* xOfs) + v ^* yOfs
+        where step = (p2 - p1) ^/ nPaths
+              --xOfs = (randomRs (-0.50,0.50) gen) !! (round n)
+              (V2 x y) = p1 + step ^* n
+              (nx,ny) = vfunc (x,y)
+              xOfs = nx * 2
+              yOfs = (randomRs (-6.00,6.00) $ snd $ split gen) !! (round n)
+              ofs = V2 xOfs yOfs
+      paths = map (\(n,gen) -> map (\(pair,gen') -> toPoint gen' n pair)
+                             $ zip pairs (iterate (fst . split) gen))
+            $ zip [1..nPaths] (iterate (fst . split) $ mkStdGen 1)
+      toPath (p:ps) = Path p False $ map PathLineTo ps
+   in mapM_ ((stroke (1.0) (JoinMiter 0) (CapStraight 1, CapStraight 1)) . toPath) paths
 
 colourCurves :: Args
              -> StdGen
