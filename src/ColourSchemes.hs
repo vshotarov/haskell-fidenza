@@ -11,7 +11,7 @@ import Distribution (Distribution(..), toWeightedDistribution)
 type ColourScheme = (PixelRGBA8, Distribution PixelRGBA8)
 
 luxe,rad,golfSocks,baked,politique :: ColourScheme
-cool,am :: ColourScheme
+cool,am,whiteOnCream :: ColourScheme
 colourSchemes :: [ColourScheme]
 
 luxe = (PixelRGBA8 235 228 216 255,
@@ -85,7 +85,10 @@ am = (PixelRGBA8  61  54  77 255,
                               ,(PixelRGBA8 231 211 172 255, 0.04)
                               ,(PixelRGBA8 224 141 135 255, 0.04)])
 
-colourSchemes = [luxe, rad, golfSocks, baked, politique, cool, am]
+whiteOnCream = (PixelRGBA8 235 228 216 255,
+                toWeightedDistribution [(PixelRGBA8 250 248 245 255, 1.0)])
+
+colourSchemes = [luxe, rad, golfSocks, baked, politique, cool, am, whiteOnCream]
 
 -- Parsers
 readColour :: String -> PixelRGBA8
