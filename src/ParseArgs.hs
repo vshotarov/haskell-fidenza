@@ -40,6 +40,8 @@ data Args = Args
     , aRandomBoil :: Float
     , aRandomBoilSeed :: Int
     , aStrokeOrFill :: Int
+    , aOutlineColour :: PixelRGBA8
+    , aOutlineSize :: Float
     } deriving stock (Show)
 
 data ArgDesc = ArgDesc (String,String,String)
@@ -76,6 +78,8 @@ recognizedArgs = Map.fromList $ map (\(x,y,v) -> (x, ArgDesc (x,y,v))) [
                  , ("randomBoil","0","")
                  , ("randomBoilSeed","0","")
                  , ("strokeOrFill","1","")
+                 , ("outlineColour","(10,10,10,255)","")
+                 , ("outlineSize","1","")
                  ]
 recognizedArgNames :: [String]
 recognizedArgNames = map ("--"++) $ Map.keys recognizedArgs
@@ -136,4 +140,6 @@ parseArgs args = parsedArgs
                           aRandomBoil = read $ getArg "randomBoil"
                           aRandomBoilSeed = read $ getArg "randomBoilSeed"
                           aStrokeOrFill = read $ getArg "strokeOrFill"
+                          aOutlineColour = readColour $ getArg "outlineColour"
+                          aOutlineSize = read $ getArg "outlineSize"
                 _  -> error $ "Fidenza.parseArgs: Unrecognized args: " ++ unrecognizedArgs'

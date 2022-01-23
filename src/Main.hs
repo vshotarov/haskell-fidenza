@@ -35,7 +35,9 @@ fidenza args@(Args { aSeed = seed
                    , aVectorFieldGenerator = vectorFieldGenerator
                    , aMaxCurves = maxCurves
                    , aWidths = widths
-                   , aStrokeOrFill = strokeOrFill }) = do
+                   , aStrokeOrFill = strokeOrFill
+                   , aOutlineColour = outlineColour
+                   , aOutlineSize = outlineSize }) = do
   let randomGen = mkStdGen seed
   let (noiseRandomGen,randomGen') = split randomGen
   let (worldRandomGen,widthRandomGen) = split randomGen'
@@ -56,9 +58,14 @@ fidenza args@(Args { aSeed = seed
   let (chunkingRandomGen,colourRandomGen) = split randomGen
   let curves = toCurves args' chunkingRandomGen . toFamilies $ fst world ++ snd world
   let colouredCurves = colourCurves args' colourRandomGen curves
-  let drawFunc :: Path -> Drawing px ()
-      drawFunc | strokeOrFill == 0 = (stroke 1 JoinRound) (CapStraight 0, CapStraight 0)
-               | otherwise         = fill
+  let customStroke = stroke outlineSize (JoinMiter 0) (CapStraight 0, CapStraight 0)
+  let drawFunc :: Path -> Drawing PixelRGBA8 ()
+      drawFunc path | strokeOrFill == 0 = customStroke path
+                    | strokeOrFill == 1 = fill path
+                    | otherwise = do
+                        fill path
+                        withTexture (uniformTexture outlineColour)
+                          $ customStroke path
   ---- Visualising the vector field
   --writePng "test.png" $ renderDrawing width height (PixelRGBA8 125 125 125 255) $
   --    mapM_ (\(x,y) -> withTexture (uniformTexture (PixelRGBA8 0 0 0 255)) $ stroke 2 JoinRound (CapRound,CapRound) $
