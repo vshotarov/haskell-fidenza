@@ -37,7 +37,11 @@ fidenza args@(Args { aSeed = seed
                    , aWidths = widths
                    , aStrokeOrFill = strokeOrFill
                    , aOutlineColour = outlineColour
-                   , aOutlineSize = outlineSize }) = do
+                   , aOutlineSize = outlineSize
+                   , aDrawSoftly = drawSoftly
+                   , aSoftSeed = softSeed
+                   , aSoftPerlinFreq = softFreq
+                   , aSoftPerlinOfs = softOfs }) = do
   let randomGen = mkStdGen seed
   let (noiseRandomGen,randomGen') = split randomGen
   let (worldRandomGen,widthRandomGen) = split randomGen'
@@ -48,11 +52,11 @@ fidenza args@(Args { aSeed = seed
             twoPi = 2 * (22/7)
             angle = twoPi * PNoise.noise2d p width noiseRandomGen
          in (cos angle, sin angle))
-  let softFreq = 0.016
+  let softRandomGen = mkStdGen softSeed
   let softFieldFunc (x,y) =
-        let p = ((x+100)*softFreq,(y+120)*softFreq)
+        let p = ((x-softOfs)*softFreq,(y-softOfs)*softFreq)
             twoPi = 2 * (22/7)
-            angle = twoPi * PNoise.noise2d p width noiseRandomGen
+            angle = twoPi * PNoise.noise2d p width softRandomGen
          in (cos angle, sin angle)
   let widths' = reverse
               . sort
@@ -65,23 +69,19 @@ fidenza args@(Args { aSeed = seed
   let curves = toCurves args' chunkingRandomGen . toFamilies $ fst world ++ snd world
   let colouredCurves = colourCurves args' colourRandomGen curves
   let customStroke = stroke outlineSize (JoinMiter 0) (CapStraight 0, CapStraight 0)
-  let drawFunc :: Path -> Drawing PixelRGBA8 ()
-      drawFunc path | strokeOrFill == 0 = customStroke path
-                    | strokeOrFill == 1 = fill path
-                    | otherwise = do
-                        fill path
-                        withTexture (uniformTexture outlineColour)
-                          $ customStroke path
-  ---- Visualising the vector field
-  --writePng "test.png" $ renderDrawing width height (PixelRGBA8 125 125 125 255) $
-  --    mapM_ (\(x,y) -> withTexture (uniformTexture (PixelRGBA8 0 0 0 255)) $ stroke 2 JoinRound (CapRound,CapRound) $
-  --                        Line (V2 x y) (V2 (x + 20*(fst $ vf (x,y))) (y + 20*(snd $ vf (x,y))))) [(x,y) | x <- [5,25..(fromIntegral width-20)], y <- [5,25..(fromIntegral height-20)]]
+  let drawSweep :: Path -> Drawing PixelRGBA8 ()
+      drawSweep path | strokeOrFill == 0 = customStroke path
+                     | strokeOrFill == 1 = fill path
+                     | otherwise = do
+                         fill path
+                         withTexture (uniformTexture outlineColour)
+                           $ customStroke path
+  let drawFunc gen curve | drawSoftly = drawSoftCurve args' softFieldFunc gen curve
+                         | otherwise  = drawSweep $ sweepRectOnCurve args' curve
   writePng "test.png" $ renderDrawing width height (aBgColour args') $
-      mapM_ (\((curve,colour),gen) ->  withTexture (uniformTexture colour) $
-                                   --drawFunc $ sweepRectOnCurve args' curve) colouredCurves
-                                   drawSoftCurve args softFieldFunc gen curve) $
-            zip colouredCurves $
-                iterate (fst . split) randomGen
+      mapM_ (\((curve,colour),gen) -> withTexture (uniformTexture colour) $
+                                        drawFunc gen curve) $
+            zip colouredCurves $ iterate (fst . split) randomGen
 
 data LineSeg = LineSeg { lsP1 :: Point
                        , lsP2 :: Point
@@ -120,48 +120,51 @@ drawSoftCurve :: Args
               -> StdGen
               -> Curve
               -> Drawing PixelRGBA8 ()
-drawSoftCurve args vfunc gen lineSegs =
-  let getPerp lineSeg = normalize $ V2 (-y) x
-        where (V2 x y) = lsP2 lineSeg - lsP1 lineSeg
-      -- an interim is a combination of
-      -- - a point on the negative side of the perp of a line seg
-      -- - a point on the positive side of the perp of a line seg
-      -- - the vector between the 2 points of a line seg
-      firstInterim = (p1 + perp ^* (w/2), p1 - perp ^* (w/2), normalize (p2 - p1))
-        where ls@(LineSeg { lsP1 = p1, lsP2 = p2, lsWidth = w }) = head lineSegs
-              perp = getPerp ls
-      toInterim ls@(LineSeg { lsP1 = p1, lsP2 = p2, lsWidth = w }) =
-        (p2 + perp ^* (w/2), p2 - perp ^* (w/2), normalize (p2 - p1))
-        where perp = getPerp ls
-      -- everyNth specifies how many steps to treat as one, so we don't
-      -- have small jittery noise but rather broader effect
-      everyNth _ [] = []
-      everyNth n (x:xs) = x:(everyNth n $ drop (n-1) xs)
-      interims = map toInterim $ everyNth 11 lineSegs
-      nPaths = min 220 $ (lsWidth $ head lineSegs) * 1.8
-      -- toPoint takes in a path number n and an interim and
-      -- generates a point between p1 and p2
-      toPoint gen n (p1,p2,v) =
-        (p1 + (step ^* n) + ((normalize step) ^* xOfs) + v ^* yOfs, gen')
-        where step = (p2 - p1) ^/ nPaths
-              (V2 x y) = p1 + step ^* n
-              xOfs = (fst $ vfunc (x,y)) * 2
-              (yOfs,gen') = randomR (-6.00,6.00) gen
-              ofs = V2 xOfs yOfs
-      -- toStroke takes in a path number and goes through all interims
-      -- getting a point for each and collecting them into a stroke
-      -- which represents the effect of one hair of the brush on the paper
-      toStroke n gen = foldr foldFunc ([],gen) interims
-        where foldFunc interim (points,gen') = (point:points,gen'')
-                where (point,gen'') = toPoint gen' n interim
-      toStrokes gen = fst
-                    $ foldr foldFunc ([],gen) [1..nPaths]
-        where foldFunc n (strokes,gen') = (stroke':strokes,gen'')
-                where (stroke',gen'') = toStroke n gen'
-      -- a couple of convenience function to have a simpler output
-      toPath (p:ps) = Path p False $ map PathLineTo ps
-      strokeDraw = stroke 1 (JoinMiter 0) (CapStraight 1, CapStraight 1)
-   in mapM_ (strokeDraw . toPath) $ toStrokes gen
+drawSoftCurve args vfunc gen lineSegs = mapM_ (strokeDraw . toPath) $ toStrokes gen
+  where getPerp lineSeg = normalize $ V2 (-y) x
+          where (V2 x y) = lsP2 lineSeg - lsP1 lineSeg
+        -- an interim is a combination of
+        -- - a point on the negative side of the perp of a line seg
+        -- - a point on the positive side of the perp of a line seg
+        -- - the vector between the 2 points of a line seg
+        firstInterim = (p1 + perp ^* (w/2), p1 - perp ^* (w/2), normalize (p2 - p1))
+          where ls@(LineSeg { lsP1 = p1, lsP2 = p2, lsWidth = w }) = head lineSegs
+                perp = getPerp ls
+        toInterim ls@(LineSeg { lsP1 = p1, lsP2 = p2, lsWidth = w }) =
+          (p2 + perp ^* (w/2), p2 - perp ^* (w/2), normalize (p2 - p1))
+          where perp = getPerp ls
+        -- everyNth specifies how many steps to treat as one, so we don't
+        -- have small jittery noise but rather broader effect
+        everyNth _ [] = []
+        everyNth n (x:xs) = x:(everyNth n $ drop (n-1) xs)
+        interims = map toInterim $ everyNth (aSoftStepLength args) lineSegs
+        nPaths = min (aSoftMaxStrokes args)
+              $ round $ (lsWidth $ head lineSegs) * (aSoftNumStrokesWidthRatio args)
+        -- toPoint takes in a path number n and an interim and
+        -- generates a point between p1 and p2
+        (perpOfsSize,vOfsSize) = (aSoftRandomOfsAlongPerp args
+                                , aSoftRandomOfsAlongV args)
+        toPoint :: StdGen -> Int -> (Point,Point,Point) -> (Point, StdGen)
+        toPoint gen n (p1,p2,v) =
+          (p1 + (step ^* nf) + ((normalize step) ^* perpOfs) + v ^* vOfs, gen')
+          where step = (p2 - p1) ^/ (fromIntegral nPaths)
+                nf = fromIntegral n
+                (V2 x y) = p1 + step ^* nf
+                perpOfs = (fst $ vfunc (x,y)) * perpOfsSize
+                (vOfs,gen') = randomR (-vOfsSize,vOfsSize) gen
+        -- toStroke takes in a path number and goes through all interims
+        -- getting a point for each and collecting them into a stroke
+        -- which represents the effect of one hair of the brush on the paper
+        toStroke n gen = foldr foldFunc ([],gen) interims
+          where foldFunc interim (points,gen') = (point:points,gen'')
+                  where (point,gen'') = toPoint gen' n interim
+        toStrokes gen = fst
+                      $ foldr foldFunc ([],gen) [1..nPaths]
+          where foldFunc n (strokes,gen') = (stroke':strokes,gen'')
+                  where (stroke',gen'') = toStroke n gen'
+        -- a couple of convenience function to have a simpler output
+        toPath (p:ps) = Path p False $ map PathLineTo ps
+        strokeDraw = stroke 1 (JoinMiter 0) (CapStraight 1, CapStraight 1)
 
 colourCurves :: Args
              -> StdGen

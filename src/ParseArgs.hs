@@ -42,6 +42,16 @@ data Args = Args
     , aStrokeOrFill :: Int
     , aOutlineColour :: PixelRGBA8
     , aOutlineSize :: Float
+    -- Softness
+    , aDrawSoftly :: Bool
+    , aSoftSeed :: Int
+    , aSoftStepLength :: Int
+    , aSoftMaxStrokes :: Int
+    , aSoftNumStrokesWidthRatio :: Float
+    , aSoftRandomOfsAlongPerp :: Float
+    , aSoftRandomOfsAlongV :: Float
+    , aSoftPerlinFreq :: Float
+    , aSoftPerlinOfs :: Float
     } deriving stock (Show)
 
 data ArgDesc = ArgDesc (String,String,String)
@@ -80,6 +90,16 @@ recognizedArgs = Map.fromList $ map (\(x,y,v) -> (x, ArgDesc (x,y,v))) [
                  , ("strokeOrFill","1","")
                  , ("outlineColour","(10,10,10,255)","")
                  , ("outlineSize","1","")
+                   -- softness
+                 , ("drawSoftly","0","")
+                 , ("softSeed","0","")
+                 , ("softStepLength","11","")
+                 , ("softMaxStrokes","220","")
+                 , ("softNumStrokesWidthRatio","1.8","")
+                 , ("softRandomOfsAlongPerp","2","")
+                 , ("softRandomOfsAlongV","6","")
+                 , ("softPerlinFreq","0.016","")
+                 , ("softPerlinOfs","-300","-300")
                  ]
 recognizedArgNames :: [String]
 recognizedArgNames = map ("--"++) $ Map.keys recognizedArgs
@@ -142,4 +162,13 @@ parseArgs args = parsedArgs
                           aStrokeOrFill = read $ getArg "strokeOrFill"
                           aOutlineColour = readColour $ getArg "outlineColour"
                           aOutlineSize = read $ getArg "outlineSize"
+                          aDrawSoftly = 1 == (read $ getArg "drawSoftly" :: Int)
+                          aSoftSeed = read $ getArg "softSeed"
+                          aSoftStepLength = read $ getArg "softStepLength"
+                          aSoftMaxStrokes = read $ getArg "softMaxStrokes"
+                          aSoftNumStrokesWidthRatio = read $ getArg "softNumStrokesWidthRatio"
+                          aSoftRandomOfsAlongPerp = read $ getArg "softRandomOfsAlongPerp"
+                          aSoftRandomOfsAlongV = read $ getArg "softRandomOfsAlongV"
+                          aSoftPerlinFreq = read $ getArg "softPerlinFreq"
+                          aSoftPerlinOfs = read $ getArg "softPerlinOfs"
                 _  -> error $ "Fidenza.parseArgs: Unrecognized args: " ++ unrecognizedArgs'
