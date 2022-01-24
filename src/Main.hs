@@ -63,7 +63,11 @@ fidenza args@(Args { aSeed = seed
               . take maxCurves
               . map (sampleDistribution widths)
               $ randoms widthRandomGen
-  let args' = args { _aCurveWidths = widths' }
+  let interweave [] _ = []
+      interweave _ [] = []
+      interweave (a:as) bs = a:(interweave bs as)
+  let widths'' = interweave widths' (reverse widths')
+  let args' = args { _aCurveWidths = widths'' }
   world <- simWorld args' fieldFunc worldRandomGen (aMaxSteps args') 0 ([],[])
   let (chunkingRandomGen,colourRandomGen) = split randomGen
   let curves = toCurves args' chunkingRandomGen . toFamilies $ fst world ++ snd world
