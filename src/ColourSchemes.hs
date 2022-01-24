@@ -11,7 +11,7 @@ import Distribution (Distribution(..), toWeightedDistribution)
 type ColourScheme = (PixelRGBA8, Distribution PixelRGBA8)
 
 luxe,rad,golfSocks,baked,politique :: ColourScheme
-cool,am,whiteOnCream :: ColourScheme
+cool,am,whiteOnCream,vs1,vs2,vs3 :: ColourScheme
 colourSchemes :: [ColourScheme]
 
 luxe = (PixelRGBA8 235 228 216 255,
@@ -28,7 +28,6 @@ luxe = (PixelRGBA8 235 228 216 255,
                                ,(PixelRGBA8 209  42  47 255, 0.02)
                                ,(PixelRGBA8 247 177 161 255, 0.01)
                                ,(PixelRGBA8 124 169 191 255, 0.01)
-                               ,(PixelRGBA8 236 229 217 255, 0.01)
                                ,(PixelRGBA8 230 125  50 255, 0.01)])
 
 rad = (PixelRGBA8 235 228 216 255,
@@ -88,7 +87,28 @@ am = (PixelRGBA8  61  54  77 255,
 whiteOnCream = (PixelRGBA8 235 228 216 255,
                 toWeightedDistribution [(PixelRGBA8 250 248 245 255, 1.0)])
 
-colourSchemes = [luxe, rad, golfSocks, baked, politique, cool, am, whiteOnCream]
+vs1 = (PixelRGBA8 235 228 216 255,
+        toWeightedDistribution [(PixelRGBA8 38 70 83 255, 0.2)
+                               ,(PixelRGBA8 42 157 143 255, 0.2)
+                               ,(PixelRGBA8 233 196 106 255, 0.05)
+                               ,(PixelRGBA8 244 162 97 255, 0.05)
+                               ,(PixelRGBA8 231 111 81 255, 0.06)])
+
+vs2 = (PixelRGBA8 235 228 216 255,
+        toWeightedDistribution [(PixelRGBA8 0 48 73 255, 0.5)
+                               ,(PixelRGBA8 214 40 40 255, 0.5)
+                               ,(PixelRGBA8 247 127 0 255, 0.5)
+                               ,(PixelRGBA8 252 191 73 255, 0.5)
+                               ,(PixelRGBA8 234 226 183 255, 0.5)])
+vs3 = (PixelRGBA8 235 228 216 255,
+        toWeightedDistribution [(PixelRGBA8 247 37 133 255, 0.2)
+                               ,(PixelRGBA8 114 9 183 255, 1.5)
+                               ,(PixelRGBA8 72 12 168 255, 3.5)
+                               ,(PixelRGBA8 63 55 201 255, 3.5)
+                               ,(PixelRGBA8 72 149 239 255, 1.5)
+                               ,(PixelRGBA8 76 201 240 255, 0.2)])
+
+colourSchemes = [luxe, rad, golfSocks, baked, politique, cool, am, whiteOnCream, vs1, vs2, vs3]
 
 -- Parsers
 readColour :: String -> PixelRGBA8
