@@ -11,7 +11,7 @@ import Distribution (Distribution(..), toWeightedDistribution)
 type ColourScheme = (PixelRGBA8, Distribution PixelRGBA8)
 
 luxe,rad,golfSocks,baked,politique :: ColourScheme
-cool,am,whiteOnCream,vs1,vs2,vs3 :: ColourScheme
+cool,am,whiteOnCream,blackAndWhite,vs1,vs2,vs3 :: ColourScheme
 colourSchemes :: [ColourScheme]
 
 luxe = (PixelRGBA8 235 228 216 255,
@@ -31,10 +31,10 @@ luxe = (PixelRGBA8 235 228 216 255,
                                ,(PixelRGBA8 230 125  50 255, 0.01)])
 
 rad = (PixelRGBA8 235 228 216 255,
-       toWeightedDistribution [(PixelRGBA8 250 248 245 255, 0.33)
+       toWeightedDistribution [(PixelRGBA8 250 248 245 255, 0.23)
                               ,(PixelRGBA8 252 210 101 255, 0.06)
                               ,(PixelRGBA8 219  79  84 255, 0.04)
-                              ,(PixelRGBA8 124 169 191 255, 0.03)
+                              ,(PixelRGBA8 124 169 191 255, 0.07)
                               ,(PixelRGBA8 84  62   46 255, 0.02)
                               ,(PixelRGBA8 230 125  50 255, 0.02)
                               ,(PixelRGBA8 224 215 197 255, 0.02)
@@ -77,7 +77,7 @@ cool = (PixelRGBA8 235 228 216 255,
                                ,(PixelRGBA8  61  45  34 255, 0.02)
                                ,(PixelRGBA8 251 210 103 255, 0.01)])
 am = (PixelRGBA8  61  54  77 255,
-      toWeightedDistribution [(PixelRGBA8  44  41  51 255, 0.50)
+      toWeightedDistribution [(PixelRGBA8  44  41  51 255, 1.20)
                               ,(PixelRGBA8 127 114 127 255, 0.15)
                               ,(PixelRGBA8 204 185 184 255, 0.15)
                               ,(PixelRGBA8 142 178 148 255, 0.04)
@@ -86,6 +86,9 @@ am = (PixelRGBA8  61  54  77 255,
 
 whiteOnCream = (PixelRGBA8 235 228 216 255,
                 toWeightedDistribution [(PixelRGBA8 250 248 245 255, 1.0)])
+
+blackAndWhite = (PixelRGBA8 235 228 216 255,
+                  toWeightedDistribution [(PixelRGBA8 10 10 10 255, 1.0)])
 
 vs1 = (PixelRGBA8 235 228 216 255,
         toWeightedDistribution [(PixelRGBA8 38 70 83 255, 0.2)
@@ -108,7 +111,7 @@ vs3 = (PixelRGBA8 235 228 216 255,
                                ,(PixelRGBA8 72 149 239 255, 1.5)
                                ,(PixelRGBA8 76 201 240 255, 0.2)])
 
-colourSchemes = [luxe, rad, golfSocks, baked, politique, cool, am, whiteOnCream, vs1, vs2, vs3]
+colourSchemes = [luxe, rad, golfSocks, baked, politique, cool, am, whiteOnCream, blackAndWhite, vs1, vs2, vs3]
 
 -- Parsers
 readColour :: String -> PixelRGBA8
