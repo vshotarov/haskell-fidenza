@@ -46,6 +46,7 @@ fidenza args@(Args { aSeed = seed
   let randomGen = mkStdGen seed
   let (noiseRandomGen,randomGen') = split randomGen
   let (worldRandomGen,widthRandomGen) = split randomGen'
+  let (_,chunkSizesRandomGen) = split worldRandomGen
   fieldFunc <- case vectorFieldGenerator of
     FromFile fp -> readVectorFieldFromFile (width,height) fp
     PerlinNoise freq ofs -> return (\(x,y) ->
@@ -68,7 +69,10 @@ fidenza args@(Args { aSeed = seed
       interweave _ [] = []
       interweave (a:as) bs = a:(interweave bs as)
   let widths'' = interweave widths' (reverse widths')
-  let args' = args { _aCurveWidths = widths'' }
+  let chunkSizes = take maxCurves
+                 $ map (sampleDistribution $ aChunkSizes args)
+                 $ randoms chunkSizesRandomGen
+  let args' = args { _aCurveWidths = widths'', _aChunkSizes = chunkSizes }
   world <- simWorld args' fieldFunc worldRandomGen (aMaxSteps args') 0 ([],[])
   let (chunkingRandomGen,colourRandomGen) = split randomGen
   let curves = toCurves args' chunkingRandomGen . toFamilies $ fst world ++ snd world
@@ -197,7 +201,7 @@ toCurves args randomGen families = filter ((>0) . length) $ concat chunks
                                                 else chunk:remainder'
           where squareChunkSize = round . lsWidth $ head lineSegs
                 chunkSizes = mapDistribution fst $ aChunkSizes args
-                avgChunkSize = sum chunkSizes `div` length chunkSizes
+                avgChunkSize = (_aChunkSizes args) !! (lsFamily $ head lineSegs)
                 (randomF,randomGen'') = random randomGen'
                 (boundaryStart,randomGen''') = randomR (aStopChunkingAt args) randomGen''
                 (boundaryEnd,randomGen'''') = randomR (aStopChunkingAt args) randomGen'''

@@ -24,6 +24,7 @@ data Args = Args
     , aMaxSteps :: Int
     , aMaxCurves :: Int
     , aMinLength :: Int
+    , _aChunkSizes :: [Int]
     , aChunkSizes :: Distribution Int
     , aStopChunkingAt :: (Int,Int)
     , aSquareBlocks :: Float
@@ -143,6 +144,7 @@ parseArgs args = parsedArgs
                           aMaxCurves = read $ getArg "maxCurves"
                           aMinLength = read $ getArg "minLength"
                           aChunkSizes = readDistribution $ getArg "chunkSizes"
+                          _aChunkSizes = []
                           aStopChunkingAt = read $ getArg "stopChunkingAt"
                           aSquareBlocks = read $ getArg "squareBlocks"
                           aAvgBlockSize = read $ getArg "avgBlockSize"
