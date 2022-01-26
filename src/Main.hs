@@ -33,6 +33,7 @@ fidenza args@(Args { aSeed = seed
                    , aWidth = width
                    , aHeight = height
                    , aVectorFieldGenerator = vectorFieldGenerator
+                   , aRotationOffset = rotationOffset
                    , aMaxCurves = maxCurves
                    , aWidths = widths
                    , aStrokeOrFill = strokeOrFill
@@ -50,7 +51,7 @@ fidenza args@(Args { aSeed = seed
     PerlinNoise freq ofs -> return (\(x,y) ->
         let p = ((x-fromIntegral ofs)*freq,(y-fromIntegral ofs)*freq)
             twoPi = 2 * (22/7)
-            angle = twoPi * PNoise.noise2d p width noiseRandomGen
+            angle = rotationOffset + twoPi * PNoise.noise2d p width noiseRandomGen
          in (cos angle, sin angle))
   let softRandomGen = mkStdGen softSeed
   let softFieldFunc (x,y) =

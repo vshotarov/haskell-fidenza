@@ -20,6 +20,7 @@ data Args = Args
     , aPadding :: Int
     , aVectorFieldGenerator :: VectorFieldGenerator
     , aNumGenerationAttempts :: Int
+    , aRotationOffset :: Float
     , aMaxSteps :: Int
     , aMaxCurves :: Int
     , aMinLength :: Int
@@ -67,6 +68,7 @@ recognizedArgs = Map.fromList $ map (\(x,y,v) -> (x, ArgDesc (x,y,v))) [
                  , ("collisionMargin","2","")
                  , ("padding","20","")
                  , ("vectorFieldGenerator","PerlinNoise 0.001 -1000","")
+                 , ("rotationOffset","0","")
                  , ("numGenerationAttempts","1000","")
                  , ("maxSteps","10000","")
                  , ("maxCurves","100","")
@@ -135,6 +137,7 @@ parseArgs args = parsedArgs
                           aCollisionMargin = read $ getArg "collisionMargin"
                           aPadding = read $ getArg "padding"
                           aVectorFieldGenerator = read $ getArg "vectorFieldGenerator"
+                          aRotationOffset = read $ getArg "rotationOffset"
                           aNumGenerationAttempts = read $ getArg "numGenerationAttempts"
                           aMaxSteps = read $ getArg "maxSteps"
                           aMaxCurves = read $ getArg "maxCurves"
