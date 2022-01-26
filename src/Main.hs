@@ -76,17 +76,22 @@ fidenza args@(Args { aSeed = seed
   let customStroke = stroke outlineSize (JoinMiter 0) (CapStraight 0, CapStraight 0)
   let drawSweep :: Path -> Drawing PixelRGBA8 ()
       drawSweep path | strokeOrFill == 0 = customStroke path
-                     | strokeOrFill == 1 = fill path
+                     | strokeOrFill == 1 || strokeOrFill == 3 = fill path
                      | otherwise = do
                          fill path
                          withTexture (uniformTexture outlineColour)
                            $ customStroke path
   let drawFunc gen curve | drawSoftly = drawSoftCurve args' softFieldFunc gen curve
                          | otherwise  = drawSweep $ sweepRectOnCurve args' curve
-  writePng "test.png" $ renderDrawing width height (aBgColour args') $
+  writePng "test.png" $ renderDrawing width height (aBgColour args') $ do
       mapM_ (\((curve,colour),gen) -> withTexture (uniformTexture colour) $
                                         drawFunc gen curve) $
             zip colouredCurves $ iterate (fst . split) randomGen
+      mapM_ (\curve -> withTexture (uniformTexture outlineColour) $
+             customStroke $ sweepRectOnCurve args' curve)
+           $ if strokeOrFill == 3
+                then toFamilies $ fst world ++ snd world
+                else []
 
 data LineSeg = LineSeg { lsP1 :: Point
                        , lsP2 :: Point
