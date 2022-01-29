@@ -7,6 +7,7 @@ import Graphics.Rasterific
 import Graphics.Rasterific.Linear (normalize, dot, distance, (^*), (^/))
 import Graphics.Rasterific.Texture (uniformTexture)
 import Data.List (sort)
+import Data.Fixed (mod')
 import Debug.Trace
 
 import ParseArgs (Args( .. ), helpString, parseArgs)
@@ -33,6 +34,7 @@ fidenza args@(Args { aSeed = seed
                    , aWidth = width
                    , aHeight = height
                    , aVectorFieldGenerator = vectorFieldGenerator
+                   , aVectorFieldStepPiDivisor = stepPiDivisor
                    , aRotationOffset = rotationOffset
                    , aMaxCurves = maxCurves
                    , aWidths = widths
@@ -51,9 +53,16 @@ fidenza args@(Args { aSeed = seed
     FromFile fp -> readVectorFieldFromFile (width,height) fp
     PerlinNoise freq ofs -> return (\(x,y) ->
         let p = ((x-fromIntegral ofs)*freq,(y-fromIntegral ofs)*freq)
-            twoPi = 2 * (22/7)
+            twoPi = 2 * pi
             angle = rotationOffset + twoPi * PNoise.noise2d p width noiseRandomGen
-         in (cos angle, sin angle))
+            angle' = if stepPiDivisor == 0
+                     then angle
+                     else angle - (angle `mod'` (pi / (fromIntegral stepPiDivisor)))
+         in (cos angle', sin angle'))
+    Horizontal -> return (\_ -> (cos rotationOffset,sin rotationOffset))
+    Straight ->
+        let angle = rotationOffset + 2 * pi * (fst $ random noiseRandomGen)
+         in return (\_ -> (cos angle, sin angle))
   let softRandomGen = mkStdGen softSeed
   let softFieldFunc (x,y) =
         let p = ((x-softOfs)*softFreq,(y-softOfs)*softFreq)

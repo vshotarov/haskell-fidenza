@@ -7,9 +7,13 @@ import Data.List (isPrefixOf)
 
 data VectorFieldGenerator = PerlinNoise Float Int
                           | FromFile String
+                          | Straight
+                          | Horizontal
                             deriving stock (Show)
 
 instance Read VectorFieldGenerator where
+    readsPrec _ "Straight" = [(Straight,"")]
+    readsPrec _ "Horizontal" = [(Horizontal,"")]
     readsPrec _ str
       | isPrefixOf "PerlinNoise " str =
           let params = words $ drop (length "PerlinNoise ") str
