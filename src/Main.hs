@@ -8,12 +8,12 @@ import Graphics.Rasterific.Linear (normalize, dot, distance, (^*), (^/))
 import Graphics.Rasterific.Texture (uniformTexture)
 import Data.List (sort)
 import Data.Fixed (mod')
-import Debug.Trace
+import Debug.Trace()
 
 import ParseArgs (Args( .. ), helpString, parseArgs)
 import VectorFieldGenerator (VectorFieldGenerator(..), VectorFieldFunc,
                              readVectorFieldFromFile)
-import Distribution (mapDistribution, sampleDistribution)
+import Distribution (sampleDistribution)
 
 import qualified PerlinNoise as PNoise (noise2d)
 
@@ -150,9 +150,6 @@ drawSoftCurve args vfunc gen lineSegs = mapM_ (strokeDraw . toPath) $ toStrokes 
         -- - a point on the negative side of the perp of a line seg
         -- - a point on the positive side of the perp of a line seg
         -- - the vector between the 2 points of a line seg
-        firstInterim = (p1 + perp ^* (w/2), p1 - perp ^* (w/2), normalize (p2 - p1))
-          where ls@(LineSeg { lsP1 = p1, lsP2 = p2, lsWidth = w }) = head lineSegs
-                perp = getPerp ls
         toInterim ls@(LineSeg { lsP1 = p1, lsP2 = p2, lsWidth = w }) =
           (p2 + perp ^* (w/2), p2 - perp ^* (w/2), normalize (p2 - p1))
           where perp = getPerp ls
@@ -168,25 +165,25 @@ drawSoftCurve args vfunc gen lineSegs = mapM_ (strokeDraw . toPath) $ toStrokes 
         (perpOfsSize,vOfsSize) = (aSoftRandomOfsAlongPerp args
                                 , aSoftRandomOfsAlongV args)
         toPoint :: StdGen -> Int -> (Point,Point,Point) -> (Point, StdGen)
-        toPoint gen n (p1,p2,v) =
+        toPoint inGen n (p1,p2,v) =
           (p1 + (step ^* nf) + ((normalize step) ^* perpOfs) + v ^* vOfs, gen')
           where step = (p2 - p1) ^/ (fromIntegral nPaths)
                 nf = fromIntegral n
                 (V2 x y) = p1 + step ^* nf
                 perpOfs = (fst $ vfunc (x,y)) * perpOfsSize
-                (vOfs,gen') = randomR (-vOfsSize,vOfsSize) gen
+                (vOfs,gen') = randomR (-vOfsSize,vOfsSize) inGen
         -- toStroke takes in a path number and goes through all interims
         -- getting a point for each and collecting them into a stroke
         -- which represents the effect of one hair of the brush on the paper
-        toStroke n gen = foldr foldFunc ([],gen) interims
+        toStroke n inGen = foldr foldFunc ([],inGen) interims
           where foldFunc interim (points,gen') = (point:points,gen'')
                   where (point,gen'') = toPoint gen' n interim
-        toStrokes gen = fst
-                      $ foldr foldFunc ([],gen) [1..nPaths]
+        toStrokes inGen = fst
+                      $ foldr foldFunc ([],inGen) [1..nPaths]
           where foldFunc n (strokes,gen') = (stroke':strokes,gen'')
                   where (stroke',gen'') = toStroke n gen'
         -- a couple of convenience function to have a simpler output
-        toPath (p:ps) = Path p False $ map PathLineTo ps
+        toPath ps = Path (head ps) False $ map PathLineTo $ tail ps
         strokeDraw = stroke 1 (JoinMiter 0) (CapStraight 1, CapStraight 1)
 
 colourCurves :: Args
@@ -209,7 +206,6 @@ toCurves args randomGen families = filter ((>0) . length) $ concat chunks
                                                 then [lineSegs]
                                                 else chunk:remainder'
           where squareChunkSize = round . lsWidth $ head lineSegs
-                chunkSizes = mapDistribution fst $ aChunkSizes args
                 avgChunkSize = (_aChunkSizes args) !! (lsFamily $ head lineSegs)
                 (randomF,randomGen'') = random randomGen'
                 (boundaryStart,randomGen''') = randomR (aStopChunkingAt args) randomGen''
