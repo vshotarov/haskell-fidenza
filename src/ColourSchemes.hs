@@ -88,7 +88,8 @@ whiteOnCream = (PixelRGBA8 235 228 216 255,
                 toWeightedDistribution [(PixelRGBA8 250 248 245 255, 1.0)])
 
 blackAndWhite = (PixelRGBA8 235 228 216 255,
-                  toWeightedDistribution [(PixelRGBA8 10 10 10 255, 1.0)])
+                  toWeightedDistribution [(PixelRGBA8  10  10  10 255, 0.95)
+                                         ,(PixelRGBA8 235 228 216 255, 0.05)])
 
 vs1 = (PixelRGBA8 235 228 216 255,
         toWeightedDistribution [(PixelRGBA8 38 70 83 255, 0.2)
