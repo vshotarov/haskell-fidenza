@@ -4,6 +4,7 @@ module Distribution ( Distribution(..)
                     , readDistribution
                     , sampleDistribution
                     , nullDistribution
+                    , distToList
                     ) where
 
 import Data.List (sortBy)
@@ -46,3 +47,6 @@ sampleDistribution (Distribution distAs) x =
 nullDistribution :: Distribution a -> Bool
 nullDistribution (Distribution []) = True
 nullDistribution _ = False
+
+distToList :: Distribution a -> [a]
+distToList (Distribution as) = map fst as

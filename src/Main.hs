@@ -23,8 +23,9 @@ main = do
   case args of
     _ | any (`elem` ["-h","--help"]) args -> putStrLn helpString
     _                                     -> do
-      putStrLn $ show $ parseArgs args
-      fidenza $ parseArgs args
+      parsedArgs <- parseArgs args
+      putStrLn $ show parsedArgs
+      fidenza parsedArgs
 
 -- NOTE: Make 2 functions for fidenza. 1 to build and dump the curves
 -- and another to colour and draw them, so we can experiment with different 
