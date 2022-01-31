@@ -1,5 +1,5 @@
-# Hidenza
-A Haskell partial implementation of [Tyler Hobbs's Fidenza Algorithm](https://tylerxhobbs.com/fidenza)
+# Haskell Fidenza
+A partial implementation of [Tyler Hobbs's Fidenza Algorithm](https://tylerxhobbs.com/fidenza), written in Haskell.
 
 ## Motivation
 Not being into NFTs at all, I've only very recently found out about the Fidenza algorithm, when it was mentioned as a prompt in [Genuary](https://genuary.art/) and I thought it looked wicked, so I read both the [flow field](https://tylerxhobbs.com/essays/2020/flow-fields) and [Fidenza](https://tylerxhobbs.com/fidenza) essays on Tyler's website in one breath. For the next couple of days I would find myself thinking about the ideas he mentioned and appreciating more and more how simple and yet clever they were.
@@ -78,7 +78,7 @@ Below is the help string for the executable which contains all the info you need
 The section about _Simple Args_ contains the parameters as defined in the original Fidenza and provide the easiest way of controlling the algorithm.
 
 ```
-A Haskell partial implementation of Tyler Hobbs's Fidenza algorithm.
+A partial implementation of Tyler Hobbs's Fidenza algorithm, written in Haskell.
 
 Partial, as there currently is no support for creating spiral Fidenzas and for intuitive,
 deterministic control over the density of Fidenzas.

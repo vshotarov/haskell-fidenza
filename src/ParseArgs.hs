@@ -184,7 +184,7 @@ allRecognizedArgNames = recognizedArgNames ++ simpleArgsNames
 
 helpString :: String
 helpString = "\n\
-\A Haskell partial implementation of Tyler Hobbs's Fidenza algorithm.\n\
+\A partial implementation of Tyler Hobbs's Fidenza algorithm, written in Haskell.\n\
 \\n\
 \Partial, as there currently is no support for creating spiral Fidenzas and for intuitive,\n\
 \deterministic control over the density of Fidenzas.\n\
