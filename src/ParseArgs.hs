@@ -128,7 +128,8 @@ recognizedArgs = Map.fromList $ map (\(x,y,v) -> (x, ArgDesc (x,y,v))) [
                  , ("chunkSizes","(2,12,1)","the distribution of chunk/segment sizes")
                  , ("stopChunkingAt","(5,15)","controls the distance from start and end to stop \n\
                                         \      chunking the ribbon into segments at. The actual number is randomly \n\
-                                        \      sampled between the left and right boundaries")
+                                        \      sampled between the left and right boundaries.\n\
+                                        \      Set this to something massive if you don't want segments")
                  , ("squareBlocks","0.0","whether to make the segments along the ribbon square.\n\
                                    \      The range is (0,1)")
                  , ("avgBlockSize","0.0","whether to make all segments on a single curve the same.\n\
@@ -144,7 +145,7 @@ recognizedArgs = Map.fromList $ map (\(x,y,v) -> (x, ArgDesc (x,y,v))) [
                  , ("chunksOverlap","1","when splitting into segments, we can choose to make them overlap a bit\n\
                                    \     or choose to have a negative number which makes gaps between the segments")
                  , ("colourScheme","0","the colour scheme as an id. See the list of colours at the\n\
-                                 \      Simple colour arg below")
+                                 \      Simple colour arg below. 9,10 and 11 are my own colour schemes")
                  , ("customBgColour","","the background colour in the format (r,g,b,a) with 0-255 values.\n\
                                   \      Overrides the background of any defined colour schemes.")
                  , ("customColours","[]","a custom colour palette in the format (r,g,b,a,probability)\n\
@@ -183,7 +184,7 @@ allRecognizedArgNames = recognizedArgNames ++ simpleArgsNames
 
 helpString :: String
 helpString = "\n\
-\A Haskell partial implementation of Tyler Hobbs's Fidenza algorithm, written by Vasil Shotarov.\n\
+\A Haskell partial implementation of Tyler Hobbs's Fidenza algorithm.\n\
 \\n\
 \Partial, as there currently is no support for creating spiral Fidenzas and for intuitive,\n\
 \deterministic control over the density of Fidenzas.\n\
@@ -215,7 +216,7 @@ helpString = "\n\
 \  If the simple flags are used, then the arguments accepted are significantly\n\
 \  simplified and act as switches on defined presets of the arguments above.\n\
 \\n\
-\  These presets are designed to resemble Tyler Hobbs' parameters as much as possible.\n\
+\  These presets are designed to resemble Tyler Hobbs's parameters as much as possible.\n\
 \\n\
 \  It's important to note that the presets are evaluated first, and then any of the main\n\
 \  arguments above, which means preset values can be overwritten by the main arguments.\n\
