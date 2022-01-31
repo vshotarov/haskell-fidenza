@@ -3,3 +3,4 @@ dist-newstyle
 *.swp
 *.png
 *.gif
+!github_imgs/*
