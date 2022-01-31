@@ -270,6 +270,9 @@ Simple Args:
       perlin noise vector field. Valid options are none,low,mid and high.
 ```
 
+## Dependencies
+This repo depends on [Rasterific](https://github.com/Twinside/Rasterific) for drawing, which in turn depends on [JuicyPixels](https://github.com/Twinside/Juicy.Pixels).
+
 ## License
 Of course, full credit for the algorithm goes to [Tyler Hobbs](https://tylerxhobbs.com/).
 
