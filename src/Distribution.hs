@@ -41,6 +41,7 @@ sampleDistribution :: Distribution a -> Float -> a
 sampleDistribution (Distribution distAs) x =
   go x distAs
   where go _ [] = error "Can't sample empty distribution"
+        go _ ((a,_):[])      = a
         go v ((a,prob):_)  | v <= prob  = a
         go v ((_,prob):as) | otherwise = go (v-prob) as
 
