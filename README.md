@@ -65,7 +65,7 @@ For the most part, I've been able to recreate the various scales present in the 
 | <img alt="medium scale" src="github_imgs/mediumScale.png" width=180px /> | <img alt="uniform scale" src="github_imgs/uniformScale.png" width=180px />
 
 | large | jumbo
-| --- | --- | ---
+| --- | ---
 | <img alt="large scale" src="github_imgs/largeScale.png" width=180px /> | <img alt="jumbo scale" src="github_imgs/jumboScale.png" width=180px />
 
 | jumboXL
