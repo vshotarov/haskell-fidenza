@@ -50,7 +50,7 @@ golfSocks = (PixelRGBA8 102 128 106 255,
                                     ,(PixelRGBA8 22 50 77 255, 0.06)
                                     ,(PixelRGBA8 237 196 191 255, 0.01)])
 
-baked = (PixelRGBA8  63 140  70 255,
+baked = (PixelRGBA8  235 228 216 255,
          toWeightedDistribution [(PixelRGBA8  63 140  70 255, 0.59)
                                  ,(PixelRGBA8 247 212 203 255, 0.16)
                                  ,(PixelRGBA8 250 248 245 255, 0.10)
