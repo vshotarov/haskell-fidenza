@@ -97,7 +97,7 @@ fidenza args@(Args { aSeed = seed
                            $ customStroke path
   let drawFunc gen curve | drawSoftly = drawSoftCurve args' softFieldFunc gen curve
                          | otherwise  = drawSweep $ sweepRectOnCurve args' curve
-  writePng "test.png" $ renderDrawing width height (aBgColour args') $ do
+  writePng "Fidenza.png" $ renderDrawing width height (aBgColour args') $ do
       mapM_ (\((curve,colour),gen) -> withTexture (uniformTexture colour) $
                                         drawFunc gen curve) $
             zip colouredCurves $ iterate (fst . split) randomGen
