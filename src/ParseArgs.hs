@@ -39,6 +39,7 @@ data Args = Args
     , aFertilities :: Distribution Int
     , aSkewAngles :: Distribution Float
       -- Drawing
+    , aScaleFactor :: Float
     , aChunksOverlap :: Int
     , aBgColour :: PixelRGBA8
     , aColours :: Distribution PixelRGBA8
@@ -142,6 +143,8 @@ recognizedArgs = Map.fromList $ map (\(x,y,v) -> (x, ArgDesc (x,y,v))) [
                  , ("skewAngles","(-0.1,0.1,0.01)","the distribution of skewing angles applied to the segments\n\
                                              \      when drawing. One angle per curve")
                    -- drawing
+                 , ("scaleFactor","1","scale factor so images can be made higher resolution without\
+                            \          having to be computed at that high resolution")
                  , ("chunksOverlap","1","when splitting into segments, we can choose to make them overlap a bit\n\
                                    \     or choose to have a negative number which makes gaps between the segments")
                  , ("colourScheme","0","the colour scheme as an id. See the list of colours at the\n\
@@ -278,6 +281,7 @@ parseArgs args = do
                         aWidths = readDistribution $ getArg "widths"
                         aFertilities = readDistribution $ getArg "fertilities"
                         aSkewAngles = readDistribution $ getArg "skewAngles"
+                        aScaleFactor = read $ getArg "scaleFactor"
                         aChunksOverlap = read $ getArg "chunksOverlap"
                         colourScheme = read $ getArg "colourScheme"
                         customColours = readColourProbs $ getArg "customColours"

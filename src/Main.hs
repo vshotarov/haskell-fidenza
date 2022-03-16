@@ -39,6 +39,7 @@ fidenza args@(Args { aSeed = seed
                    , aRotationOffset = rotationOffset
                    , aMaxCurves = maxCurves
                    , aWidths = widths
+                   , aScaleFactor = scaleFactor
                    , aStrokeOrFill = strokeOrFill
                    , aOutlineColour = outlineColour
                    , aOutlineSize = outlineSize
@@ -87,7 +88,10 @@ fidenza args@(Args { aSeed = seed
   let (chunkingRandomGen,colourRandomGen) = split randomGen
   let curves = toCurves args' chunkingRandomGen . toFamilies $ fst world ++ snd world
   let colouredCurves = colourCurves args' colourRandomGen curves
-  let customStroke = stroke outlineSize (JoinMiter 0) (CapStraight 0, CapStraight 0)
+  let scaledCurves = map (\(crv,pixel) -> (map (scaleLineSeg scaleFactor) crv, pixel)) colouredCurves
+  let (width',height') = (round $ fromIntegral width * scaleFactor,
+                          round $ fromIntegral height * scaleFactor)
+  let customStroke = stroke (outlineSize*scaleFactor) (JoinMiter 0) (CapStraight 0, CapStraight 0)
   let drawSweep :: Path -> Drawing PixelRGBA8 ()
       drawSweep path | strokeOrFill == 0 = customStroke path
                      | strokeOrFill == 1 || strokeOrFill == 3 = fill path
@@ -97,14 +101,14 @@ fidenza args@(Args { aSeed = seed
                            $ customStroke path
   let drawFunc gen curve | drawSoftly = drawSoftCurve args' softFieldFunc gen curve
                          | otherwise  = drawSweep $ sweepRectOnCurve args' curve
-  writePng "Fidenza.png" $ renderDrawing width height (aBgColour args') $ do
+  writePng "Fidenza.png" $ renderDrawing width' height' (aBgColour args') $ do
       mapM_ (\((curve,colour),gen) -> withTexture (uniformTexture colour) $
                                         drawFunc gen curve) $
-            zip colouredCurves $ iterate (fst . split) randomGen
+            zip scaledCurves $ iterate (fst . split) randomGen
       mapM_ (\curve -> withTexture (uniformTexture outlineColour) $
              customStroke $ sweepRectOnCurve args' curve)
            $ if strokeOrFill == 3
-                then toFamilies $ fst world ++ snd world
+                then map (map (scaleLineSeg scaleFactor)) . toFamilies $ fst world ++ snd world
                 else []
 
 data LineSeg = LineSeg { lsP1 :: Point
@@ -159,19 +163,21 @@ drawSoftCurve args vfunc gen lineSegs = mapM_ (strokeDraw . toPath) $ toStrokes 
         everyNth _ [] = []
         everyNth n (x:xs) = x:(everyNth n $ drop (n-1) xs)
         interims = map toInterim $ everyNth (aSoftStepLength args) lineSegs
-        nPaths = min (aSoftMaxStrokes args)
-              $ round $ (lsWidth $ head lineSegs) * (aSoftNumStrokesWidthRatio args)
+        nPaths = min (aSoftMaxStrokes args) . round
+               $ ((lsWidth $ head lineSegs) / aScaleFactor args)
+               * (aSoftNumStrokesWidthRatio args)
         -- toPoint takes in a path number n and an interim and
         -- generates a point between p1 and p2
-        (perpOfsSize,vOfsSize) = (aSoftRandomOfsAlongPerp args
-                                , aSoftRandomOfsAlongV args)
+        (perpOfsSize,vOfsSize) = (aScaleFactor args * aSoftRandomOfsAlongPerp args
+                                , aScaleFactor args * aSoftRandomOfsAlongV args)
         toPoint :: StdGen -> Int -> (Point,Point,Point) -> (Point, StdGen)
         toPoint inGen n (p1,p2,v) =
           (p1 + (step ^* nf) + ((normalize step) ^* perpOfs) + v ^* vOfs, gen')
           where step = (p2 - p1) ^/ (fromIntegral nPaths)
                 nf = fromIntegral n
                 (V2 x y) = p1 + step ^* nf
-                perpOfs = (fst $ vfunc (x,y)) * perpOfsSize
+                (x',y') = (x / aScaleFactor args, y / aScaleFactor args)
+                perpOfs = (fst $ vfunc (x',y')) * perpOfsSize
                 (vOfs,gen') = randomR (-vOfsSize,vOfsSize) inGen
         -- toStroke takes in a path number and goes through all interims
         -- getting a point for each and collecting them into a stroke
@@ -185,7 +191,8 @@ drawSoftCurve args vfunc gen lineSegs = mapM_ (strokeDraw . toPath) $ toStrokes 
                   where (stroke',gen'') = toStroke n gen'
         -- a couple of convenience function to have a simpler output
         toPath ps = Path (head ps) False $ map PathLineTo $ tail ps
-        strokeDraw = stroke 1 (JoinMiter 0) (CapStraight 1, CapStraight 1)
+        strokeDraw = stroke (aScaleFactor args) (JoinMiter 0)
+                            (CapStraight 1, CapStraight 1)
 
 colourCurves :: Args
              -> StdGen
@@ -395,3 +402,7 @@ genLineSeg args vectorFunc randomGen others generation numAttempts = output
                                      others
                                      generation
                                      (numAttempts - 1)
+
+scaleLineSeg :: Float -> LineSeg -> LineSeg
+scaleLineSeg scale ls@(LineSeg { lsP1=p1, lsP2=p2, lsWidth=w }) =
+    ls { lsP1=p1 ^* scale, lsP2=p2 ^* scale, lsWidth=w * scale }
