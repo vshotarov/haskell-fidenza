@@ -15,7 +15,8 @@ import ColourSchemes (colourSchemes, readColour, readColourProbs)
 
 data Args = Args
     { -- General options
-      aSeed :: Int
+      aOutFile :: String
+    , aSeed :: Int
     , aWidth :: Int
     , aHeight :: Int
     , aCollisionMargin :: Int
@@ -95,6 +96,7 @@ simpleArgsNames = map ("--"++) $ Map.keys simpleArgs
 recognizedArgs :: Map.Map String ArgDesc
 recognizedArgs = Map.fromList $ map (\(x,y,v) -> (x, ArgDesc (x,y,v))) [
                    ("help","","shows this help message")
+                 , ("outFile","Fidenza.png","name of the file to write to")
                  , ("seed","0","seed for the random generator")
                  , ("width","1000","image width")
                  , ("height","1200","image height")
@@ -259,7 +261,8 @@ parseArgs args = do
         parsedArgs =
             case unrecognizedArgs of
               [] -> Args {..}
-                  where aSeed = read $ getArg "seed"
+                  where aOutFile = getArg "outFile"
+                        aSeed = read $ getArg "seed"
                         aWidth = read $ getArg "width"
                         aHeight = read $ getArg "height"
                         aCollisionMargin = read $ getArg "collisionMargin"

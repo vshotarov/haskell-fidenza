@@ -31,7 +31,8 @@ main = do
 -- and another to colour and draw them, so we can experiment with different 
 -- colour options without having to rerun the whole algorithm
 fidenza :: Args -> IO ()
-fidenza args@(Args { aSeed = seed
+fidenza args@(Args { aOutFile = outFile
+                   , aSeed = seed
                    , aWidth = width
                    , aHeight = height
                    , aVectorFieldGenerator = vectorFieldGenerator
@@ -101,7 +102,7 @@ fidenza args@(Args { aSeed = seed
                            $ customStroke path
   let drawFunc gen curve | drawSoftly = drawSoftCurve args' softFieldFunc gen curve
                          | otherwise  = drawSweep $ sweepRectOnCurve args' curve
-  writePng "Fidenza.png" $ renderDrawing width' height' (aBgColour args') $ do
+  writePng outFile $ renderDrawing width' height' (aBgColour args') $ do
       mapM_ (\((curve,colour),gen) -> withTexture (uniformTexture colour) $
                                         drawFunc gen curve) $
             zip scaledCurves $ iterate (fst . split) randomGen
